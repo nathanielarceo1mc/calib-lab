@@ -1,7 +1,18 @@
+# Dependencies
 /vendor/
-node_modules/
+/node_modules
 npm-debug.log
 yarn-error.log
+*.log
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+/.idea
+/.vscode
+/.fleet
+/.nova
+/.zed
 
 # Laravel 4 specific
 bootstrap/compiled.php
@@ -15,16 +26,22 @@ public/hot
 public_html/storage
 public_html/hot
 
-storage/*.key
-.env
-Homestead.yaml
-Homestead.json
-/.vagrant
-.phpunit.result.cache
-
+# Storage & builds
 /public/build
+/storage/*.key
 /storage/pail
+
+# Environment & config
+.env
 .env.backup
 .env.production
-.phpactor.json
+Homestead.yaml
+Homestead.json
 auth.json
+
+# PHPUnit
+.phpunit.result.cache
+/.phpunit.cache
+
+# Other tooling
+.phpactor.json
