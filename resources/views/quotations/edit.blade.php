@@ -1,4 +1,4 @@
-{{-- resources/views/quotations/edit.blade.php --}}
+﻿{{-- resources/views/quotations/edit.blade.php --}}
 <x-app-layout>
 
     {{-- Header: breadcrumb + title + back button --}}
@@ -25,12 +25,12 @@
 
         <a href="{{ route('quotations.index') }}"
            class="inline-flex items-center px-4 py-1.5 rounded-md border border-gray-300 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50">
-            ← Back to list
+            鈫?Back to list
         </a>
     </div>
 
     <div class="py-5">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="max-w-screen-xl mx-auto sm:px-6 lg:px-8">
             <form method="POST" action="{{ route('quotations.update', $quotation->id) }}">
                 @csrf
                 @method('PUT')
@@ -306,7 +306,7 @@
                                         <td class="border-t px-2 py-1 text-center">
                                             <button type="button"
                                                     class="inline-flex items-center justify-center h-7 w-7 rounded bg-rose-500 text-white text-xs">
-                                                ×
+                                                脳
                                             </button>
                                         </td>
                                     </tr>
@@ -378,7 +378,7 @@
                                         <td class="border-t px-2 py-1 text-center">
                                             <button type="button"
                                                     class="inline-flex items-center justify-center h-7 w-7 rounded bg-rose-500 text-white text-xs">
-                                                ×
+                                                脳
                                             </button>
                                         </td>
                                     </tr>
@@ -405,7 +405,7 @@
                 <div class="flex items-center justify-end mt-4">
                     <button type="submit"
                             class="inline-flex items-center px-6 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow">
-                        💾 Save Changes
+                        馃捑 Save Changes
                     </button>
                 </div>
             </form>
@@ -413,3 +413,6 @@
     </div>
 
 </x-app-layout>
+
+
+

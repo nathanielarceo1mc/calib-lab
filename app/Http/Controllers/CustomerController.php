@@ -63,6 +63,8 @@ class CustomerController extends Controller
             'vat_type'                    => ['nullable', 'string', 'max:50'],
             'certificate_expiration_days' => ['nullable', 'integer'],
             'company_type'                => ['nullable', 'string', 'max:50'],
+            'pos.*.file'                  => ['nullable', 'file', 'mimes:pdf,doc,docx,xls,xlsx,csv'],
+            'files.*.file'                => ['nullable', 'file', 'mimes:pdf,doc,docx,xls,xlsx,csv'],
         ]);
 
         $validated['code']       = $this->generateNextCustomerCode();
@@ -179,6 +181,8 @@ class CustomerController extends Controller
             'vat_type'                    => ['nullable', 'string', 'max:50'],
             'certificate_expiration_days' => ['nullable', 'integer'],
             'company_type'                => ['nullable', 'string', 'max:50'],
+            'pos.*.file'                  => ['nullable', 'file', 'mimes:pdf,doc,docx,xls,xlsx,csv'],
+            'files.*.file'                => ['nullable', 'file', 'mimes:pdf,doc,docx,xls,xlsx,csv'],
         ]);
 
         $customer->update($validated);

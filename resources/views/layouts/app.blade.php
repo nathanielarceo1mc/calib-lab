@@ -271,12 +271,8 @@
         <header class="bg-white shadow">
             <div class="max-w-7xl mx-auto py-3 px-4 sm:px-6 lg:px-8">
                 <div class="flex items-center justify-between space-x-4">
-                    {{-- Left: page title from $header slot if provided --}}
-                    <div class="flex flex-col">
-                        @isset($header)
-                            {{ $header }}
-                        @endisset
-                    </div>
+                    {{-- Left spacer to keep layout aligned while hiding page captions --}}
+                    <div class="w-24 sm:w-40"></div>
 
                     {{-- Center: search (global dummy) --}}
                     <div class="hidden md:block flex-1 max-w-xl mx-6">
@@ -310,7 +306,11 @@
 
         {{-- Page content --}}
         <main>
-            {{ $slot }}
+            @isset($slot)
+                {{ $slot }}
+            @else
+                @yield('content')
+            @endisset
         </main>
     </div>
 </div>

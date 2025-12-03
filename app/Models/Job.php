@@ -9,36 +9,31 @@ class Job extends Model
 {
     use HasFactory;
 
-    // Use our own table, not Laravel's queue "jobs" table
+    // Your DB table (we saw queries going to work_orders)
     protected $table = 'work_orders';
 
     protected $fillable = [
-        'job_number',
         'order_number',
         'order_date',
         'customer_name',
+        'contact_person',
+        'status',
+        'receiver_name',
+        'for_approval',
+
+        // optional fields you may add later:
         'address',
         'telephone',
         'email',
-        'contact_person',
-        'designation',
+        'notes',
         'po_number',
-        'po_file_path',
-        'discount_percent',
-		'quotation_id',
         'quotation_number',
         'end_user',
-        'receiver_user_id',
-        'status',
-        'notes',
+        'discount_percent',
     ];
-public function quotation()
-{
-    return $this->belongsTo(Quotation::class);
-}
 
-    public function items()
-    {
-        return $this->hasMany(JobItem::class);
-    }
+    protected $casts = [
+        'order_date'   => 'date',
+        'for_approval' => 'boolean',
+    ];
 }

@@ -1,8 +1,20 @@
 {{-- resources/views/customers/edit.blade.php --}}
-<x-app-layout>
-    {{-- PAGE CONTENT (no x-slot header so only search bar on top, same as create) --}}
+@extends('layouts.app')
+
+@section('title', 'Customers - Edit')
+
+@section('header')
+    <div>
+        <h2 class="text-lg font-semibold text-slate-800">Edit Customer</h2>
+        <div class="text-xs text-slate-500 mt-0.5">
+            Home / Operations / Customers / Edit
+        </div>
+    </div>
+@endsection
+
+@section('content')
     <div class="py-6">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="max-w-screen-xl mx-auto sm:px-6 lg:px-8">
             <div x-data="customerEditForm()">
 
                 <form action="{{ route('customers.update', $customer->id) }}" method="POST" enctype="multipart/form-data">
@@ -449,7 +461,8 @@
                                        <td class="px-2 py-1 border-b border-gray-200">
     <input type="file"
            class="block w-full text-xs"
-           :name="'pos['+index+'][file]'">
+           :name="'pos['+index+'][file]'"
+           accept=".pdf,.doc,.docx,.xls,.xlsx,.csv">
 
     <div x-show="po.file_path" class="mt-1 text-[10px] text-gray-500">
         Existing:
@@ -517,7 +530,8 @@
                                       <td class="px-2 py-1 border-b border-gray-200">
     <input type="file"
            class="block w-full text-xs"
-           :name="'files['+index+'][file]'">
+           :name="'files['+index+'][file]'"
+           accept=".pdf,.doc,.docx,.xls,.xlsx,.csv">
 
     <div x-show="fileRow.file_path" class="mt-1 text-[10px] text-gray-500">
         Existing:
@@ -684,4 +698,4 @@
 </script>
 @endpush
 
-</x-app-layout>
+@endsection

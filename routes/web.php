@@ -2,27 +2,28 @@
 
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
+
 use App\Http\Controllers\ReceivingController;
 use App\Http\Controllers\UnitUnderTestController;
-use App\Http\Controllers\JobOrderController;
+// use App\Http\Controllers\JobOrderController;   // ❌ not needed anymore
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\QuotationController;
-use App\Http\Controllers\CustomerController;   // ✅ add this
-use App\Models\Job;
+use App\Http\Controllers\CustomerController;
+use App\Models\WorkOrder;
+use App\Models\User; 
 
 // Landing → dashboard
 Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
-// Main dashboard (protected)
+// Dashboard counts now use WorkOrder
 Route::get('/dashboard', function () {
-    // Live counts for the tiles
-    $receivingCount = Job::where('status', 'receiving')->count();
-    $technicalCount = Job::where('status', 'technical')->count();
-    $releasingCount = Job::where('status', 'releasing')->count();
-    $billingCount   = Job::where('status', 'billing')->count();
-    $arCount        = Job::where('status', 'ar')->count();
+    $receivingCount = WorkOrder::where('status', 'receiving')->count();
+    $technicalCount = WorkOrder::where('status', 'technical')->count();
+    $releasingCount = WorkOrder::where('status', 'releasing')->count();
+    $billingCount   = WorkOrder::where('status', 'billing')->count();
+    $arCount        = WorkOrder::where('status', 'ar')->count();
 
     return view('dashboard', compact(
         'receivingCount',
@@ -40,17 +41,31 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Customers ✅ (from old system)
+    // Customers
     Route::resource('customers', CustomerController::class);
 
-    // Receiving
+    // Receiving (WorkOrder header)
     Route::get('/receiving', [ReceivingController::class, 'index'])->name('receiving.index');
     Route::get('/receiving/create', [ReceivingController::class, 'create'])->name('receiving.create');
     Route::post('/receiving', [ReceivingController::class, 'store'])->name('receiving.store');
+    Route::get('/receiving/{workOrder}/edit', [ReceivingController::class, 'edit'])->name('receiving.edit');
+    Route::put('/receiving/{workOrder}', [ReceivingController::class, 'update'])->name('receiving.update');
+    Route::post('/receiving/{workOrder}/post', [ReceivingController::class, 'post'])->name('receiving.post');
+    Route::post('/receiving/{workOrder}/submit-approval', [ReceivingController::class, 'submitForApproval'])->name('receiving.submitApproval');
 
-    // Units & Jobs
+    // ⬇️ Keep these ONLY if your ReceivingController already has edit/update/destroy for WorkOrder
+    // and make sure the method signatures use WorkOrder $workOrder.
+    /*
+    Route::get('/receiving/{workOrder}/edit', [ReceivingController::class, 'edit'])->name('receiving.edit');
+    Route::put('/receiving/{workOrder}', [ReceivingController::class, 'update'])->name('receiving.update');
+    Route::delete('/receiving/{workOrder}', [ReceivingController::class, 'destroy'])->name('receiving.destroy');
+    */
+
+    // Units (Unit Under Test lines)
     Route::resource('units', UnitUnderTestController::class);
-    Route::resource('jobs', JobOrderController::class);
+
+    // ❌ old jobs routes removed – WorkOrder replaces them
+    // Route::resource('jobs', JobOrderController::class);
 
     // Quotations (Marketing → PO)
     Route::resource('quotations', QuotationController::class);

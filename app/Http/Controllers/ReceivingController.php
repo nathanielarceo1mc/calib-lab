@@ -2,323 +2,272 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Job;
-use App\Models\JobItem;
-use App\Models\JobUnit;
+use App\Models\WorkOrder;
+use App\Models\Customer;
+use App\Models\UnitUnderTest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class ReceivingController extends Controller
 {
+    /**
+     * List Receiving work orders (like SMCS receiving list).
+     */
     public function index(Request $request)
     {
-        // --- Sorting setup ---------------------------------------------------
-        $sortField = $request->get('sort', 'order_date');
-        $sortDir   = $request->get('dir', 'desc');
+        $filter = $request->get('filter', 'all');
 
-        // Only allow sorting by these columns
-        $allowedSorts = [
-            'order_number',
-            'order_date',
-            'customer_name',
-            'contact_person',
-            'status',
-            'receiver_user_id',
-        ];
+        $forApprovalCount = WorkOrder::where('status', 'receiving')
+            ->where('for_approval', 1)
+            ->count();
 
-        if (! in_array($sortField, $allowedSorts, true)) {
-            $sortField = 'order_date';
+        $query = WorkOrder::orderBy('order_date', 'desc')
+            ->orderBy('id', 'desc');
+
+        if ($filter === 'for-approval') {
+            $query->where('status', 'receiving')
+                  ->where('for_approval', 1);
         }
 
-        if (! in_array(strtolower($sortDir), ['asc', 'desc'], true)) {
-            $sortDir = 'desc';
-        }
-
-        // --- Summary tiles ---------------------------------------------------
-        $receivingCount = Job::where('status', 'receiving')->count();
-        $technicalCount = Job::where('status', 'technical')->count();
-        $releasingCount = Job::where('status', 'releasing')->count();
-        $billingCount   = Job::where('status', 'billing')->count();
-        $arCount        = Job::where('status', 'ar')->count();
-
-        // --- Jobs list (sortable, paginated) ---------------------------------
-        $jobs = Job::orderBy($sortField, $sortDir)
-            ->orderBy('id', 'desc')   // stable tie-breaker
-            ->paginate(100);          // matches your "Show 100 entries" UI
+        $jobs = $query->get();
 
         return view('receiving.index', [
-            'jobs'           => $jobs,
-            'receivingCount' => $receivingCount,
-            'technicalCount' => $technicalCount,
-            'releasingCount' => $releasingCount,
-            'billingCount'   => $billingCount,
-            'arCount'        => $arCount,
-            'sort'           => $sortField,
-            'dir'            => $sortDir,
+            'jobs'             => $jobs,
+            'forApprovalCount' => $forApprovalCount,
+            'activeFilter'     => $filter,
         ]);
     }
 
+    /**
+     * Show "New Order" form.
+     */
     public function create()
     {
-        // Auto-generate unique work order number based on last sequence this year
-        $year   = Carbon::now()->format('Y');
-        $prefix = 'WO-' . $year . '-';
+        // Generate next order number: 1MC-ORD-YYYY-#### (based on work_orders table)
+        $year = Carbon::now()->year;
 
-        // Look for the last order_number like "WO-2025-000X"
-        $last = Job::where('order_number', 'like', $prefix . '%')
+        $prefix = '1MC-ORD-' . $year . '-';
+
+        $last = WorkOrder::where('order_number', 'like', $prefix . '%')
             ->orderBy('order_number', 'desc')
             ->first();
 
         if ($last) {
-            // Extract last 4-digit sequence
-            $lastSeq = (int) substr($last->order_number, strlen($prefix));
+            $lastSeq = (int) substr($last->order_number, -4);
             $nextSeq = $lastSeq + 1;
         } else {
             $nextSeq = 1;
         }
 
-        $orderNumber = $prefix . str_pad($nextSeq, 4, '0', STR_PAD_LEFT);
-        $today       = Carbon::now()->format('Y-m-d');
+        $newOrderNumber = sprintf('%s%04d', $prefix, $nextSeq);
 
-        return view('receiving.create', compact('orderNumber', 'today'));
+        // Customers with related contact persons and end-users
+        $customers = Customer::with(['contactPersons', 'endUsers'])
+            ->orderBy('business_name', 'asc')
+            ->get();
+
+        return view('receiving.create', [
+            'newOrderNumber'   => $newOrderNumber,
+            'customers'        => $customers,
+        ]);
     }
-
+    /**
+     * Store new work order (header only for now) then redirect to edit.
+     */
     public function store(Request $request)
     {
-        $data = $request->validate([
-            // IMPORTANT: use work_orders, not jobs
-            'order_number'      => 'required|string|max:50|unique:work_orders,order_number',
-            'order_date'        => 'required|date',
-            'customer_name'     => 'required|string|max:255',
-            'address'           => 'nullable|string',
-            'telephone'         => 'nullable|string|max:100',
-            'email'             => 'nullable|email|max:255',
-            'contact_person'    => 'nullable|string|max:255',
-            'designation'       => 'nullable|string|max:255',
-            'po_number'         => 'nullable|string|max:255',
-            'discount_percent'  => 'nullable|numeric|min:0|max:100',
-            'quotation_number'  => 'nullable|string|max:255',
-            'end_user'          => 'nullable|string|max:255',
-            'notes'             => 'nullable|string',
+        $validated = $this->validateHeader($request);
 
-            // UUT arrays
-            'accreditation'     => 'nullable|array',
-            'service_type'      => 'nullable|array',
-            'capability'        => 'nullable|array',
-            'uut_description'   => 'nullable|array',
-            'uut_type'          => 'nullable|array',
-            'receiving_method'  => 'nullable|array',
-            'qty'               => 'nullable|array',
-            'unit'              => 'nullable|array',
-            'lead_time_days'    => 'nullable|array',
+        // Derive customer_name STRICTLY from company name
+        $customer = Customer::findOrFail($validated['customer_id']);
+        $customerName = $customer->business_name;   // <- company name only
+
+        // Handle PO file upload (optional)
+        $poPath = null;
+        if ($request->hasFile('po_file')) {
+            $poPath = $request->file('po_file')->store('po_files', 'public');
+        }
+
+        $workOrder = WorkOrder::create([
+            'customer_id'      => $validated['customer_id'] ?? null,
+            'job_number'       => null, // reserved for future if needed
+            'order_number'     => $validated['order_number'],
+            'order_date'       => $validated['order_date'],
+            'customer_name'    => $customerName,
+            'address'          => $validated['address'] ?? null,
+            'telephone'        => $validated['telephone'] ?? null,
+            'email'            => $validated['email'] ?? null,
+            'contact_person'   => $validated['contact_person'] ?? null,
+            'designation'      => $validated['designation'] ?? null,
+            'po_number'        => $validated['po_number'] ?? null,
+            'po_file_path'     => $poPath,
+            'discount_percent' => $validated['discount_percent'] ?? 0,
+            'quotation_number' => $validated['quotation_number'] ?? null,
+            'end_user'         => $validated['end_user'] ?? null,
+            'receiver_user_id' => optional(auth()->user())->id,
+            'status'           => 'receiving',
+            'for_approval'     => 0,
+            'notes'            => $validated['notes'] ?? null,
         ]);
 
-        DB::transaction(function () use (&$job, $data) {
-            // Create the Job (work order)
-            $job = Job::create([
-                'order_number'     => $data['order_number'],
-                'order_date'       => $data['order_date'],
-                'customer_name'    => $data['customer_name'],
-                'address'          => $data['address'] ?? null,
-                'telephone'        => $data['telephone'] ?? null,
-                'email'            => $data['email'] ?? null,
-                'contact_person'   => $data['contact_person'] ?? null,
-                'designation'      => $data['designation'] ?? null,
-                'po_number'        => $data['po_number'] ?? null,
-                'discount_percent' => $data['discount_percent'] ?? 0,
-                'quotation_number' => $data['quotation_number'] ?? null,
-                'end_user'         => $data['end_user'] ?? null,
-                'notes'            => $data['notes'] ?? null,
-                // status at Receiving before posting
-                'status'           => 'receiving',
-            ]);
-
-            // Save Unit Under Test rows (JobItem) + create JobUnit records
-            $accreditations    = $data['accreditation']    ?? [];
-            $serviceTypes      = $data['service_type']     ?? [];
-            $capabilities      = $data['capability']       ?? [];
-            $descriptions      = $data['uut_description']  ?? [];
-            $types             = $data['uut_type']         ?? [];
-            $receivingMethods  = $data['receiving_method'] ?? [];
-            $qtys              = $data['qty']              ?? [];
-            $units             = $data['unit']             ?? [];
-            $leadTimes         = $data['lead_time_days']   ?? [];
-
-            foreach ($accreditations as $index => $acc) {
-                $rowEmpty =
-                    empty($acc) &&
-                    empty($serviceTypes[$index] ?? null) &&
-                    empty($descriptions[$index] ?? null);
-
-                if ($rowEmpty) {
-                    continue;
-                }
-
-                $item = JobItem::create([
-                    'job_id'          => $job->id,
-                    'accreditation'   => $acc,
-                    'service_type'    => $serviceTypes[$index]     ?? null,
-                    'capability'      => $capabilities[$index]     ?? null,
-                    'description'     => $descriptions[$index]     ?? null,
-                    'type'            => $types[$index]            ?? null,
-                    'receiving_method'=> $receivingMethods[$index] ?? null,
-                    'qty'             => (int) ($qtys[$index]      ?? 1),
-                    'unit'            => $units[$index]            ?? null,
-                    'lead_time_days'  => $leadTimes[$index]        ?? null,
-                ]);
-
-                // Create JobUnit records, one per quantity, with unique reference no.
-                $qty = max(1, (int) ($qtys[$index] ?? 1));
-                for ($i = 0; $i < $qty; $i++) {
-                    $ref = $this->generateReferenceNo(
-                        $item->service_type,
-                        $job->order_date ?? now()
-                    );
-
-                    JobUnit::create([
-                        'job_item_id' => $item->id,
-                        'reference_no'=> $ref,
-                        'status'      => 'for_approval',
-                        'name'        => $item->description,
-                    ]);
-                }
-            }
-        });
-
-        // After create, go straight to EDIT screen
         return redirect()
-            ->route('receiving.edit', $job)
+            ->route('receiving.edit', $workOrder->id)
             ->with('success', 'New order has been successfully created.');
     }
 
     /**
-     * Edit view – shows order details + generated UUTs and a POST button.
+     * Show edit form.
      */
-    public function edit(Job $job)
+    public function edit(WorkOrder $workOrder)
     {
-        $job->load(['items.units']);
-
-        return view('receiving.edit', compact('job'));
+        return view('receiving.edit', [
+            'job'       => $workOrder->load('units'),
+            'customers' => Customer::with(['contactPersons', 'endUsers'])->orderBy('business_name')->get(),
+        ]);
     }
 
     /**
-     * Update per-unit details (manufacturer, model, SN, range, remarks, assigned_to).
+     * Update header fields.
      */
-    public function updateUnits(Job $job, Request $request)
+    public function update(Request $request, WorkOrder $workOrder)
     {
-        $data = $request->validate([
-            'unit_id'        => 'required|array',
-            'manufacturer'   => 'nullable|array',
-            'model'          => 'nullable|array',
-            'serial_number'  => 'nullable|array',
-            'range'          => 'nullable|array',
-            'remarks'        => 'nullable|array',
-            'assigned_to'    => 'nullable|array',
+        $validated = $this->validateHeader($request, $workOrder->id, $workOrder);
+
+        // Customer name should remain the stored text value (not FK), so keep incoming value
+        $poPath = $workOrder->po_file_path;
+        if ($request->hasFile('po_file')) {
+            $poPath = $request->file('po_file')->store('po_files', 'public');
+        }
+
+        $workOrder->update([
+            'customer_id'      => $validated['customer_id'] ?? $workOrder->customer_id,
+            'order_number'     => $validated['order_number'],
+            'order_date'       => $validated['order_date'],
+            'customer_name'    => $validated['customer_name'] ?? $workOrder->customer_name,
+            'address'          => $validated['address'] ?? null,
+            'telephone'        => $validated['telephone'] ?? null,
+            'email'            => $validated['email'] ?? null,
+            'contact_person'   => $validated['contact_person'] ?? null,
+            'designation'      => $validated['designation'] ?? null,
+            'po_number'        => $validated['po_number'] ?? null,
+            'po_file_path'     => $poPath,
+            'discount_percent' => $validated['discount_percent'] ?? 0,
+            'quotation_number' => $validated['quotation_number'] ?? null,
+            'end_user'         => $validated['end_user'] ?? null,
+            'notes'            => $validated['notes'] ?? null,
         ]);
 
-        // list of all unit IDs
-        $unitIds        = $data['unit_id'];
-        $manufacturer   = $data['manufacturer']   ?? [];
-        $model          = $data['model']          ?? [];
-        $serial_number  = $data['serial_number']  ?? [];
-        $range          = $data['range']          ?? [];
-        $remarks        = $data['remarks']        ?? [];
-        $assigned_to    = $data['assigned_to']    ?? [];
-
-        // Only allow updating units that belong to this job
-        $validUnitIds = JobUnit::whereIn('id', $unitIds)
-            ->whereHas('item', function ($q) use ($job) {
-                $q->where('job_id', $job->id);
-            })
-            ->pluck('id')
-            ->toArray();
-
-        foreach ($unitIds as $index => $id) {
-            if (! in_array($id, $validUnitIds)) {
-                continue;
+        // Sync UUT rows (simple replace)
+        $workOrder->units()->delete();
+        $uutRows = $request->input('uut', []);
+        if (is_array($uutRows)) {
+            foreach ($uutRows as $row) {
+                if ($this->isUutRowFilled($row)) {
+                    $workOrder->units()->create([
+                        'accreditation'    => $row['accreditation'] ?? null,
+                        'service_type'     => $row['service_type'] ?? null,
+                        'capability'       => $row['capability'] ?? null,
+                        'description'      => $row['description'] ?? null,
+                        'type'             => $row['type'] ?? null,
+                        'receiving_method' => $row['receiving_method'] ?? null,
+                        'qty'              => $row['qty'] ?? null,
+                        'unit'             => $row['unit'] ?? null,
+                        'lead_time'        => $row['lead_time'] ?? null,
+                        'rush_fee'         => $row['rush_fee'] ?? null,
+                        'discount'         => $row['discount'] ?? null,
+                    ]);
+                }
             }
-
-            $unit = JobUnit::find($id);
-            if (! $unit) {
-                continue;
-            }
-
-            $unit->update([
-                'manufacturer'  => $manufacturer[$index]  ?? null,
-                'model'         => $model[$index]         ?? null,
-                'serial_number' => $serial_number[$index] ?? null,
-                'range'         => $range[$index]         ?? null,
-                'remarks'       => $remarks[$index]       ?? null,
-                'assigned_to'   => $assigned_to[$index]   ?? null,
-            ]);
         }
 
-        return redirect()
-            ->route('receiving.edit', $job)
-            ->with('success', 'Unit under test details updated.');
+        return back()->with('success', 'Order updated.');
     }
 
     /**
-     * POST /receiving/{job}/post
-     * Marks the order (and all units) as posted.
+     * Post the order (lock in and mark posted).
      */
-    public function post(Job $job)
+    public function post(WorkOrder $workOrder)
     {
-        if ($job->status === 'posted') {
-            return redirect()
-                ->route('receiving.edit', $job)
-                ->with('success', 'Order has already been posted.');
-        }
+        $workOrder->update([
+            'status'       => 'posted',
+            'for_approval' => 0,
+        ]);
 
-        DB::transaction(function () use ($job) {
-            // Update job status
-            $job->status = 'posted';
-            $job->save();
-
-            // Mark all units as posted
-            $itemIds = $job->items()->pluck('id');
-            if ($itemIds->isNotEmpty()) {
-                JobUnit::whereIn('job_item_id', $itemIds)
-                    ->update(['status' => 'posted']);
-            }
-        });
-
-        return redirect()
-            ->route('receiving.edit', $job)
-            ->with('success', 'Order has been successfully posted.');
+        return back()->with('success', 'Order has been successfully posted.');
     }
 
     /**
-     * Generate reference number like:
-     *   2025CAL00001, 2025CAL00002, ...
-     *   2025INS00001, 2025INS00002, ...
+     * Submit the order for approval (flag only for now).
      */
-    protected function generateReferenceNo(?string $serviceType, $orderDate): string
+    public function submitForApproval(WorkOrder $workOrder)
     {
-        $year = Carbon::parse($orderDate)->format('Y');
+        $workOrder->update([
+            'for_approval' => 1,
+        ]);
 
-        $prefixType = strtoupper($serviceType ?? '');
-        if ($prefixType === 'INSPECTION') {
-            $middle = 'INS';
-        } else {
-            // default to CAL
-            $middle = 'CAL';
-        }
+        return back()->with('success', 'Order submitted for approval.');
+    }
 
-        $prefix = $year . $middle;
+    /**
+     * Shared header validation.
+     */
+    protected function validateHeader(Request $request, $workOrderId = null, WorkOrder $workOrder = null): array
+    {
+        $hasExistingPo = $workOrder && $workOrder->po_file_path;
 
-        $last = JobUnit::where('reference_no', 'like', $prefix . '%')
-            ->orderBy('reference_no', 'desc')
-            ->first();
+        return $request->validate([
+            'order_number'      => [
+                'required',
+                'string',
+                'max:32',
+                Rule::unique('work_orders', 'order_number')->ignore($workOrderId),
+            ],
+            'order_date'        => ['required', 'date'],
+            'customer_id'       => ['nullable', 'exists:customers,id'], // only used on create to derive name
+            'customer_name'     => ['nullable', 'string', 'max:255'],
 
-        if ($last) {
-            $lastSeq = (int) substr($last->reference_no, strlen($prefix));
-            $nextSeq = $lastSeq + 1;
-        } else {
-            $nextSeq = 1;
-        }
+            'address'           => ['nullable', 'string', 'max:500'],
+            'telephone'         => ['nullable', 'string', 'max:50'],
+            'email'             => ['nullable', 'string', 'max:255'],
+            'contact_person'    => ['nullable', 'string', 'max:255'],
+            'designation'       => ['nullable', 'string', 'max:255'],
+            'use_details_from'  => ['nullable', 'string', 'max:64'],
+            'end_user'          => ['nullable', 'string', 'max:255'],
+            'to_follow_po'      => ['nullable', 'boolean'],
 
-        return $prefix . str_pad($nextSeq, 5, '0', STR_PAD_LEFT);
+            'po_number'         => ['nullable', 'string', 'max:64'],
+            'po_file'           => [
+                Rule::requiredIf(! $request->boolean('to_follow_po') && ! $hasExistingPo),
+                'file',
+                'mimes:pdf,jpg,jpeg,png'
+            ],
+            'discount_percent'  => ['nullable', 'numeric', 'min:0', 'max:100'],
+
+            'quotation_number'  => ['nullable', 'string', 'max:64'],
+            'notes'             => ['nullable', 'string'],
+
+            'uut'                       => ['array'],
+            'uut.*.accreditation'       => ['nullable', 'string', 'max:255'],
+            'uut.*.service_type'        => ['nullable', 'string', 'max:255'],
+            'uut.*.capability'          => ['nullable', 'string'],
+            'uut.*.description'         => ['nullable', 'string'],
+            'uut.*.type'                => ['nullable', 'string', 'max:50'],
+            'uut.*.receiving_method'    => ['nullable', 'string', 'max:50'],
+            'uut.*.qty'                 => ['nullable', 'string', 'max:50'],
+            'uut.*.unit'                => ['nullable', 'string', 'max:50'],
+            'uut.*.lead_time'           => ['nullable', 'string', 'max:100'],
+            'uut.*.rush_fee'            => ['nullable', 'numeric', 'min:0'],
+            'uut.*.discount'            => ['nullable', 'numeric', 'min:0'],
+        ]);
+    }
+
+    protected function isUutRowFilled(array $row): bool
+    {
+        return collect($row)->filter(function ($v) {
+            return $v !== null && $v !== '' && $v !== [];
+        })->isNotEmpty();
     }
 }
+

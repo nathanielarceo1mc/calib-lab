@@ -15,7 +15,7 @@
     </div>
 
     <div class="py-5">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="max-w-screen-xl mx-auto sm:px-6 lg:px-8">
             <div class="bg-white border border-gray-200 shadow-sm sm:rounded-md overflow-hidden">
 
                 {{-- Card header: title, tabs, create button --}}

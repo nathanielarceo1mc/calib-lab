@@ -1,10 +1,20 @@
 {{-- resources/views/customers/create.blade.php --}}
-<x-app-layout>
-    {{-- NOTE: no <x-slot name="header"> here, so the top bar is JUST the global search. --}}
+@extends('layouts.app')
 
-    {{-- =============== PAGE CONTENT =============== --}}
+@section('title', 'Customers - New')
+
+@section('header')
+    <div>
+        <h2 class="text-lg font-semibold text-slate-800">New Customer</h2>
+        <div class="text-xs text-slate-500 mt-0.5">
+            Home / Operations / Customers / New
+        </div>
+    </div>
+@endsection
+
+@section('content')
     <div class="py-6">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="max-w-screen-xl mx-auto sm:px-6 lg:px-8">
             <div x-data="customerForm()">
 
                 <form action="{{ route('customers.store') }}" method="POST" enctype="multipart/form-data">
@@ -431,7 +441,8 @@
                                         <td class="px-2 py-1 border-b border-gray-200">
                                             <input type="file"
                                                    class="block w-full text-xs"
-                                                   :name="'pos['+index+'][file]'">
+                                                   :name="'pos['+index+'][file]'"
+                                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.csv">
                                         </td>
                                         <td class="px-2 py-1 border-b border-gray-200 text-right">
                                             <button type="button"
@@ -484,7 +495,8 @@
                                         <td class="px-2 py-1 border-b border-gray-200">
                                             <input type="file"
                                                    class="block w-full text-xs"
-                                                   :name="'files['+index+'][file]'">
+                                                   :name="'files['+index+'][file]'"
+                                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.csv">
                                         </td>
                                         <td class="px-2 py-1 border-b border-gray-200 text-right">
                                             <button type="button"
@@ -628,4 +640,4 @@
             }
         </script>
     @endpush
-</x-app-layout>
+@endsection
