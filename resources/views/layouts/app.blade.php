@@ -17,12 +17,41 @@
 
     {{-- Per-page styles (e.g. DataTables CSS) --}}
     @stack('styles')
+
+    <style>
+        /* Hide scrollbars on targeted elements (sidebar) while keeping scroll functionality */
+        .scroll-hide {
+            scrollbar-width: none;
+            -ms-overflow-style: none; /* IE/Edge */
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        .scroll-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Sidebar toggle helpers */
+        .sidebar-open {
+            transform: translateX(0);
+        }
+        .sidebar-closed {
+            transform: translateX(-100%);
+        }
+        .main-open {
+            margin-left: 16rem; /* 64 tailwind units */
+        }
+        .main-closed {
+            margin-left: 0;
+        }
+    </style>
 </head>
 <body class="font-sans antialiased">
-<div class="min-h-screen bg-gray-100 flex">
+<div class="min-h-screen bg-gray-100 relative">
 
     {{-- LEFT SIDEBAR --}}
-    <aside class="w-64 bg-white border-r border-slate-200 text-slate-700 flex flex-col">
+    <aside id="sidebar"
+        class="w-64 bg-white border-r border-slate-200 text-slate-700 flex flex-col fixed inset-y-0 left-0 z-40 transition-transform duration-200 scroll-hide sidebar-open"
+        style="max-height: 100vh; overflow-y: auto;">
 
         {{-- Company Header --}}
         <div class="h-20 flex items-center px-4 border-b border-slate-200">
@@ -149,7 +178,7 @@
             </button>
             <div x-show="services" x-transition class="ml-10 mt-1 mb-2 flex flex-col space-y-1 text-slate-600">
                 <a href="{{ route('receiving.index') }}" class="py-1 hover:text-emerald-600">Receiving</a>
-                <a href="{{ route('units.index') }}" class="py-1 hover:text-emerald-600">Technical</a>
+                <a href="{{ route('technical.index') }}" class="py-1 hover:text-emerald-600">Technical</a>
                 <a href="#" class="py-1 hover:text-emerald-600">Releasing</a>
                 <a href="#" class="py-1 hover:text-emerald-600">Billing</a>
                 <a href="#" class="py-1 hover:text-emerald-600">Accounts Receivable</a>
@@ -177,7 +206,7 @@
             </div>
 
             {{-- User Accounts --}}
-            <a href="#" class="flex items-center px-4 py-2.5 mx-2 rounded-lg mb-1 hover:bg-slate-100/70">
+            <a href="{{ route('users.index') }}" class="flex items-center px-4 py-2.5 mx-2 rounded-lg mb-1 hover:bg-slate-100/70">
                 <div class="w-5 h-5 rounded-full bg-slate-400/10 flex items-center justify-center mr-3">
                     👤
                 </div>
@@ -266,13 +295,17 @@
     </aside>
 
     {{-- RIGHT SIDE: TOP BAR + PAGE CONTENT --}}
-    <div class="flex-1 flex flex-col">
+    <div id="main-content" class="flex flex-col min-h-screen transition-all duration-200 overflow-y-auto main-open">
         {{-- Top bar --}}
-        <header class="bg-white shadow">
+        <header class="bg-white shadow sticky top-0 z-30">
             <div class="max-w-7xl mx-auto py-3 px-4 sm:px-6 lg:px-8">
                 <div class="flex items-center justify-between space-x-4">
-                    {{-- Left spacer to keep layout aligned while hiding page captions --}}
-                    <div class="w-24 sm:w-40"></div>
+                    {{-- Toggle sidebar --}}
+                    <button type="button" id="navToggle"
+                            class="inline-flex items-center justify-center h-10 w-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
+                            aria-label="Toggle navigation">
+                        ☰
+                    </button>
 
                     {{-- Center: search (global dummy) --}}
                     <div class="hidden md:block flex-1 max-w-xl mx-6">
@@ -305,17 +338,60 @@
         </header>
 
         {{-- Page content --}}
-        <main>
-            @isset($slot)
-                {{ $slot }}
-            @else
-                @yield('content')
+        <main class="pb-10">
+            @isset($header)
+                <div class="bg-white shadow mb-4">
+                    <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+                        {{ $header }}
+                    </div>
+                </div>
             @endisset
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                @isset($slot)
+                    {{ $slot }}
+                @else
+                    @yield('content')
+                @endisset
+            </div>
         </main>
     </div>
 </div>
 
 {{-- Per-page scripts (e.g. DataTables JS) --}}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const sidebar = document.getElementById('sidebar');
+        const main = document.getElementById('main-content');
+        const toggle = document.getElementById('navToggle');
+
+        if (!sidebar || !main || !toggle) {
+            return;
+        }
+
+        const closeSidebar = () => {
+            sidebar.classList.remove('sidebar-open');
+            sidebar.classList.add('sidebar-closed');
+            main.classList.remove('main-open');
+            main.classList.add('main-closed');
+        };
+
+        const openSidebar = () => {
+            sidebar.classList.add('sidebar-open');
+            sidebar.classList.remove('sidebar-closed');
+            main.classList.remove('main-closed');
+            main.classList.add('main-open');
+        };
+
+        toggle.addEventListener('click', () => {
+            const isOpen = sidebar.classList.contains('sidebar-open') && !sidebar.classList.contains('sidebar-closed');
+            if (isOpen) {
+                closeSidebar();
+            } else {
+                openSidebar();
+            }
+        });
+    });
+</script>
 @stack('scripts')
 </body>
 </html>

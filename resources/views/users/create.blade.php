@@ -82,20 +82,37 @@
                 </div>
 
                 {{-- Account Fields --}}
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     <div>
                         <label class="block text-sm font-medium">Email *</label>
                         <input type="email" name="email" class="form-input w-full" required value="{{ old('email') }}">
                     </div>
-
                     <div>
-                        <label class="block text-sm font-medium">Roles</label>
-                        <input type="text" name="roles" class="form-input w-full" value="{{ old('roles') }}">
+                        <label class="block text-sm font-medium">Password *</label>
+                        <input type="password" name="password" class="form-input w-full" required>
                     </div>
-
+                    <div>
+                        <label class="block text-sm font-medium">Confirm Password *</label>
+                        <input type="password" name="password_confirmation" class="form-input w-full" required>
+                    </div>
                     <div>
                         <label class="block text-sm font-medium">Groups</label>
                         <input type="text" name="groups" class="form-input w-full" value="{{ old('groups') }}">
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium">Roles</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mt-1">
+                        @php
+                            $selectedRoles = collect(old('roles', []))->filter();
+                        @endphp
+                        @foreach($roleOptions as $role)
+                            <label class="flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" name="roles[]" value="{{ $role }}" {{ $selectedRoles->contains($role) ? 'checked' : '' }}>
+                                <span>{{ $role }}</span>
+                            </label>
+                        @endforeach
                     </div>
                 </div>
 

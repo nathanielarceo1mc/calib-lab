@@ -52,6 +52,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/receiving/{workOrder}', [ReceivingController::class, 'update'])->name('receiving.update');
     Route::post('/receiving/{workOrder}/post', [ReceivingController::class, 'post'])->name('receiving.post');
     Route::post('/receiving/{workOrder}/submit-approval', [ReceivingController::class, 'submitForApproval'])->name('receiving.submitApproval');
+    Route::post('/receiving/{workOrder}/assign-approver-batch', [ReceivingController::class, 'assignApproverBatch'])->name('receiving.assignApproverBatch');
+    Route::post('/receiving/{workOrder}/assign-personnel-batch', [ReceivingController::class, 'assignPersonnelBatch'])->name('receiving.assignPersonnelBatch');
 
     // ⬇️ Keep these ONLY if your ReceivingController already has edit/update/destroy for WorkOrder
     // and make sure the method signatures use WorkOrder $workOrder.
@@ -61,8 +63,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/receiving/{workOrder}', [ReceivingController::class, 'destroy'])->name('receiving.destroy');
     */
 
-    // Units (Unit Under Test lines)
-    Route::resource('units', UnitUnderTestController::class);
+    // Technical (Unit Under Test lines)
+    Route::resource('technical', UnitUnderTestController::class);
 
     // ❌ old jobs routes removed – WorkOrder replaces them
     // Route::resource('jobs', JobOrderController::class);

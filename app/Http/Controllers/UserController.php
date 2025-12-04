@@ -9,17 +9,29 @@ use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
+    protected array $roleOptions = [
+        'System Admin',
+        'Receiving',
+        'TSRF Approver',
+        'Technical',
+    ];
+
     public function index()
     {
         // Show all users (including the currently logged-in one)
         $users = User::orderBy('name')->get();
 
-        return view('users.index', compact('users'));
+        return view('users.index', [
+            'users'       => $users,
+            'roleOptions' => $this->roleOptions,
+        ]);
     }
 
     public function create()
     {
-        return view('users.create');
+        return view('users.create', [
+            'roleOptions' => $this->roleOptions,
+        ]);
     }
 
     public function store(Request $request)
@@ -40,20 +52,29 @@ class UserController extends Controller
             'mobile'          => ['nullable', 'string', 'max:50'],
             'tin'             => ['nullable', 'string', 'max:50'],
 
-            'roles'           => ['nullable', 'string', 'max:255'],
+            'roles'           => ['nullable', 'array'],
+            'roles.*'         => ['string', 'max:255'],
             'groups'          => ['nullable', 'string', 'max:255'],
             'service_types'   => ['nullable', 'string', 'max:255'],
 
             'email'           => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password'        => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
         // Build the "name" field from first + last
         $data['name'] = trim($data['first_name'] . ' ' . $data['last_name']);
 
-        // Temporary random password
-        $data['password'] = Hash::make(Str::random(12));
+        // Set password from input
+        $data['password'] = Hash::make($data['password']);
 
         $data['is_active'] = true;
+
+        // Store roles as comma-separated string for now
+        if (!empty($data['roles']) && is_array($data['roles'])) {
+            $data['roles'] = implode(', ', $data['roles']);
+        } else {
+            $data['roles'] = null;
+        }
 
         User::create($data);
 
@@ -64,7 +85,10 @@ class UserController extends Controller
 
     public function edit(User $user)
     {
-        return view('users.edit', compact('user'));
+        return view('users.edit', [
+            'user'        => $user,
+            'roleOptions' => $this->roleOptions,
+        ]);
     }
 
     public function update(Request $request, User $user)
@@ -85,16 +109,30 @@ class UserController extends Controller
             'mobile'          => ['nullable', 'string', 'max:50'],
             'tin'             => ['nullable', 'string', 'max:50'],
 
-            'roles'           => ['nullable', 'string', 'max:255'],
+            'roles'           => ['nullable', 'array'],
+            'roles.*'         => ['string', 'max:255'],
             'groups'          => ['nullable', 'string', 'max:255'],
             'service_types'   => ['nullable', 'string', 'max:255'],
 
             'email'           => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'is_active'       => ['nullable', 'boolean'],
+            'password'        => ['nullable', 'string', 'min:8', 'confirmed'],
         ]);
 
         $data['name']      = trim($data['first_name'] . ' ' . $data['last_name']);
         $data['is_active'] = $request->boolean('is_active');
+
+        if (!empty($data['roles']) && is_array($data['roles'])) {
+            $data['roles'] = implode(', ', $data['roles']);
+        } else {
+            $data['roles'] = null;
+        }
+
+        if (!empty($data['password'])) {
+            $data['password'] = Hash::make($data['password']);
+        } else {
+            unset($data['password']);
+        }
 
         $user->update($data);
 

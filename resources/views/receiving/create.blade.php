@@ -142,8 +142,8 @@
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Remarks</label>
-                            <textarea name="remarks"
-                                      class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm resize-y min-h-[60px]">{{ old('remarks') }}</textarea>
+                            <textarea name="notes"
+                                      class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm resize-y min-h-[60px]">{{ old('notes') }}</textarea>
                         </div>
                     </div>
 
@@ -398,7 +398,6 @@
         </script>
     @endpush
 @endsection
-
 
 
 
