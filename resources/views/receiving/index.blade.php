@@ -37,6 +37,15 @@
                 For Approval ({{ $forApprovalCount ?? 0 }})
             </a>
 
+            {{-- For WO Generation --}}
+            <a href="{{ route('receiving.index', ['filter' => 'for-wo']) }}"
+               class="px-4 py-1.5 rounded-full text-xs font-medium
+                      {{ ($activeFilter ?? '') === 'for-wo'
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-gray-200 text-gray-600' }}">
+                For WO Generation ({{ $proceedCount ?? 0 }})
+            </a>
+
             {{-- Create new order --}}
             <a href="{{ route('receiving.create') }}"
                class="ml-auto px-4 py-2 rounded-full bg-emerald-600 text-white text-sm font-semibold shadow">
@@ -49,7 +58,11 @@
         <div class="bg-white border border-slate-200 rounded-xl shadow-sm">
             <div class="px-4 py-3 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <h3 class="text-sm font-semibold text-slate-800">
-                    Receiving List
+                    @if(($activeFilter ?? '') === 'for-wo')
+                        Proceeded Quotations (For WO Generation)
+                    @else
+                        Receiving List
+                    @endif
                 </h3>
 
                 {{-- Page-level search just for this table --}}
@@ -62,80 +75,124 @@
                 </div>
             </div>
 
-            <div class="overflow-x-auto">
-                <table id="receivingTable" class="min-w-full text-xs md:text-sm text-left">
-                    <thead class="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                        <th class="px-4 py-2 font-semibold text-slate-600">Order No.</th>
-                        <th class="px-4 py-2 font-semibold text-slate-600">Date</th>
-                        <th class="px-4 py-2 font-semibold text-slate-600">Customer</th>
-                        <th class="px-4 py-2 font-semibold text-slate-600">Contact Person</th>
-                        <th class="px-4 py-2 font-semibold text-slate-600">Status</th>
-                        <th class="px-4 py-2 font-semibold text-slate-600">Receiver</th>
-                        <th class="px-4 py-2 font-semibold text-slate-600">Actions</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @forelse($jobs as $job)
-                        <tr class="border-b border-slate-100 hover:bg-slate-50">
-                            <td class="px-4 py-2 whitespace-nowrap">
-                                {{-- Clickable order no. like SMCS --}}
-                                <a href="{{ route('receiving.edit', $job->id) }}"
-                                   class="text-emerald-600 hover:text-emerald-800 font-semibold">
-                                    {{ $job->order_number ?? '-' }}
-                                </a>
-                            </td>
-                            <td class="px-4 py-2 whitespace-nowrap">
-                                {{ optional($job->order_date)->format('Y-m-d') ?? '-' }}
-                            </td>
-                            <td class="px-4 py-2">
-                                {{ $job->customer_name ?? '-' }}
-                            </td>
-                            <td class="px-4 py-2">
-                                {{ $job->contact_person ?? '-' }}
-                            </td>
-                            <td class="px-4 py-2">
-                                @php
-                                    $status = $job->status ?? 'receiving';
-                                    $statusLabel = ucfirst($status);
-                                    $statusClass = match($status) {
-                                        'receiving' => 'bg-yellow-100 text-yellow-800',
-                                        'technical' => 'bg-cyan-100 text-cyan-800',
-                                        'releasing' => 'bg-blue-100 text-blue-800',
-                                        'billing'   => 'bg-indigo-100 text-indigo-800',
-                                        'ar'        => 'bg-red-100 text-red-800',
-                                        'posted'    => 'bg-emerald-100 text-emerald-800',
-                                        default     => 'bg-slate-100 text-slate-700',
-                                    };
-                                @endphp
-                                <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium {{ $statusClass }}">
-                                    {{ $statusLabel }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-2">
-                                {{ $job->receiver_name ?? '-' }}
-                            </td>
-                            <td class="px-4 py-2 whitespace-nowrap">
-                                <a href="{{ route('receiving.edit', $job->id) }}"
-                                   class="text-xs text-emerald-600 hover:text-emerald-800 font-semibold mr-3">
-                                    Edit
-                                </a>
-                                <a href="#"
-                                   class="text-xs text-slate-500 hover:text-slate-700">
-                                    View
-                                </a>
-                            </td>
-                        </tr>
-                    @empty
+            @if(($activeFilter ?? '') === 'for-wo')
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-xs md:text-sm text-left">
+                        <thead class="bg-slate-50 border-b border-slate-200">
                         <tr>
-                            <td colspan="7" class="px-4 py-6 text-center text-slate-500 text-sm">
-                                No receiving records found.
-                            </td>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Ref No.</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Date</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Customer</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Prepared By</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">PO Amount</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Actions</th>
                         </tr>
-                    @endforelse
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                        @forelse($proceededQuotations as $quote)
+                            <tr class="border-b border-slate-100 hover:bg-slate-50">
+                                <td class="px-4 py-2 whitespace-nowrap font-semibold text-emerald-600">
+                                    {{ $quote->quote_no }}
+                                </td>
+                                <td class="px-4 py-2 whitespace-nowrap">
+                                    {{ optional($quote->date)->format('Y-m-d') ?? '-' }}
+                                </td>
+                                <td class="px-4 py-2">{{ $quote->customer_name ?? '-' }}</td>
+                                <td class="px-4 py-2">{{ $quote->prepared_by ?? '-' }}</td>
+                                <td class="px-4 py-2">{{ number_format($quote->po_amount ?? 0, 2) }}</td>
+                                <td class="px-4 py-2 whitespace-nowrap">
+                                    <a href="{{ route('receiving.create', ['quotation_id' => $quote->id]) }}"
+                                       class="text-xs text-emerald-600 hover:text-emerald-800 font-semibold">
+                                        Create Work Order
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="px-4 py-6 text-center text-slate-500 text-sm">
+                                    No proceeded quotations found.
+                                </td>
+                            </tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <div class="overflow-x-auto">
+                    <table id="receivingTable" class="min-w-full text-xs md:text-sm text-left">
+                        <thead class="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Order No.</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Date</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Customer</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Contact Person</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Status</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Receiver</th>
+                            <th class="px-4 py-2 font-semibold text-slate-600">Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @forelse($jobs as $job)
+                            <tr class="border-b border-slate-100 hover:bg-slate-50">
+                                <td class="px-4 py-2 whitespace-nowrap">
+                                    {{-- Clickable order no. like SMCS --}}
+                                    <a href="{{ route('receiving.edit', $job->id) }}"
+                                       class="text-emerald-600 hover:text-emerald-800 font-semibold">
+                                        {{ $job->order_number ?? '-' }}
+                                    </a>
+                                </td>
+                                <td class="px-4 py-2 whitespace-nowrap">
+                                    {{ optional($job->order_date)->format('Y-m-d') ?? '-' }}
+                                </td>
+                                <td class="px-4 py-2">
+                                    {{ $job->customer_name ?? '-' }}
+                                </td>
+                                <td class="px-4 py-2">
+                                    {{ $job->contact_person ?? '-' }}
+                                </td>
+                                <td class="px-4 py-2">
+                                    @php
+                                        $status = $job->status ?? 'receiving';
+                                        $statusLabel = ucfirst($status);
+                                        $statusClass = match($status) {
+                                            'receiving' => 'bg-yellow-100 text-yellow-800',
+                                            'technical' => 'bg-cyan-100 text-cyan-800',
+                                            'releasing' => 'bg-blue-100 text-blue-800',
+                                            'billing'   => 'bg-indigo-100 text-indigo-800',
+                                            'ar'        => 'bg-red-100 text-red-800',
+                                            'posted'    => 'bg-emerald-100 text-emerald-800',
+                                            default     => 'bg-slate-100 text-slate-700',
+                                        };
+                                    @endphp
+                                    <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium {{ $statusClass }}">
+                                        {{ $statusLabel }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-2">
+                                    {{ $job->receiver_name ?? '-' }}
+                                </td>
+                                <td class="px-4 py-2 whitespace-nowrap">
+                                    <a href="{{ route('receiving.edit', $job->id) }}"
+                                       class="text-xs text-emerald-600 hover:text-emerald-800 font-semibold mr-3">
+                                        Edit
+                                    </a>
+                                    <a href="#"
+                                       class="text-xs text-slate-500 hover:text-slate-700">
+                                        View
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="px-4 py-6 text-center text-slate-500 text-sm">
+                                    No receiving records found.
+                                </td>
+                            </tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            @endif
         </div>
     </div>
 @endsection
@@ -149,7 +206,5 @@
     });
 </script>
 @endpush
-
-
 
 

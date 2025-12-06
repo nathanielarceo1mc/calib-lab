@@ -119,11 +119,14 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="label">Roles</label>
+                            @php
+                                $roleOptions[] = 'Marketing';
+                                $roleOptions[] = 'Marketing Approver';
+                                $roleOptions = collect($roleOptions)->unique()->values();
+                                $selectedRoles = collect(explode(',', old('roles', $user->roles ?? '')))->map(fn($r) => trim($r))->filter();
+                            @endphp
                             <div class="grid grid-cols-2 md:grid-cols-2 gap-2 mt-1">
                                 @foreach($roleOptions as $role)
-                                    @php
-                                        $selectedRoles = collect(explode(',', old('roles', $user->roles ?? '')))->map(fn($r) => trim($r))->filter();
-                                    @endphp
                                     <label class="flex items-center gap-2 text-sm text-gray-700">
                                         <input type="checkbox" name="roles[]" value="{{ $role }}" {{ $selectedRoles->contains($role) ? 'checked' : '' }}>
                                         <span>{{ $role }}</span>

@@ -28,12 +28,22 @@
                             </h3>
 
                             {{-- Simple status "tabs" --}}
+                            @php
+                                $roles = strtolower(auth()->user()->roles ?? '');
+                                $isApprover = str_contains($roles, 'marketing approver');
+                            @endphp
                             <div class="mt-2 inline-flex rounded-md border border-gray-200 bg-white overflow-hidden text-xs">
                                 {{-- Example filters. Hook these up to query params later. --}}
                                 <a href="{{ route('quotations.index') }}"
                                    class="px-3 py-1.5 border-r border-gray-200 {{ request('status') ? 'text-gray-500' : 'bg-emerald-50 text-emerald-700 font-semibold' }}">
                                     All
                                 </a>
+                                @if($isApprover)
+                                    <a href="{{ route('quotations.index', ['status' => 'for approval']) }}"
+                                       class="px-3 py-1.5 border-r border-gray-200 {{ request('status') === 'for approval' ? 'bg-emerald-50 text-emerald-700 font-semibold' : 'text-gray-500 hover:bg-gray-50' }}">
+                                        For Approval
+                                    </a>
+                                @endif
                                 <a href="{{ route('quotations.index', ['status' => 'approved']) }}"
                                    class="px-3 py-1.5 border-r border-gray-200 {{ request('status') === 'approved' ? 'bg-emerald-50 text-emerald-700 font-semibold' : 'text-gray-500 hover:bg-gray-50' }}">
                                     Approved
@@ -90,7 +100,7 @@
                                     <td>
                                         <a href="{{ route('quotations.edit', $quotation->id) }}"
                                            class="text-sky-700 hover:text-sky-900 hover:underline font-semibold">
-                                            {{ $quotation->ref_no ?? $quotation->reference_no }}
+                                            {{ $quotation->quote_no }}
                                         </a>
                                     </td>
 
@@ -101,7 +111,7 @@
                                     <td>{{ optional($quotation->customer)->business_name ?? $quotation->customer_name }}</td>
 
                                     {{-- Prepared By --}}
-                                    <td>{{ optional($quotation->preparedBy ?? $quotation->user)->name ?? '-' }}</td>
+                                    <td>{{ $quotation->prepared_by ?? optional($quotation->creator)->name ?? '-' }}</td>
 
                                     {{-- Status --}}
                                     <td>{{ ucfirst($quotation->status ?? 'Draft') }}</td>
@@ -130,8 +140,21 @@
                                             <a href="{{ route('quotations.edit', $quotation->id) }}"
                                                class="inline-flex items-center justify-center h-8 w-8 rounded bg-sky-500 hover:bg-sky-600 text-white text-xs"
                                                title="Edit">
-                                                ✎
+                                                Edit
                                             </a>
+
+                                            @if($isApprover && strtolower($quotation->status ?? '') === 'approved' && empty($quotation->proceed_to_receiving))
+                                                <form action="{{ route('quotations.proceed', $quotation->id) }}"
+                                                      method="POST"
+                                                      onsubmit="return confirm('Proceed this approved quotation to Receiving for work order creation?');">
+                                                    @csrf
+                                                    <button type="submit"
+                                                            class="inline-flex items-center justify-center h-8 px-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px]"
+                                                            title="Proceed to Receiving">
+                                                        Proceed
+                                                    </button>
+                                                </form>
+                                            @endif
 
                                             <form action="{{ route('quotations.destroy', $quotation->id) }}"
                                                   method="POST"
@@ -141,7 +164,7 @@
                                                 <button type="submit"
                                                         class="inline-flex items-center justify-center h-8 w-8 rounded bg-rose-500 hover:bg-rose-600 text-white text-xs"
                                                         title="Delete">
-                                                    🗑
+                                                    Delete
                                                 </button>
                                             </form>
                                         </div>
@@ -267,3 +290,4 @@
         </script>
     @endpush
 </x-app-layout>
+

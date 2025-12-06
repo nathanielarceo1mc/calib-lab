@@ -50,7 +50,10 @@
                                     class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                                 <option value="">-- Select Customer --</option>
                                 @foreach($customers as $customer)
-                                    <option value="{{ $customer->id }}">{{ $customer->business_name }}</option>
+                                    <option value="{{ $customer->id }}"
+                                            @selected(old('customer_id') == $customer->id || (!old('customer_id') && ($prefill['customer_id'] ?? null) == $customer->id))>
+                                        {{ $customer->business_name }}
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
@@ -60,19 +63,19 @@
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Address *</label>
                             <textarea name="address" id="customerAddress"
-                                      class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm resize-y min-h-[60px]">{{ old('address') }}</textarea>
+                                      class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm resize-y min-h-[60px]">{{ old('address', $prefill['address'] ?? '') }}</textarea>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 mb-1">Telephone Number</label>
                                 <input type="text" name="telephone" id="customerTelephone"
-                                       value="{{ old('telephone') }}"
+                                       value="{{ old('telephone', $prefill['telephone'] ?? '') }}"
                                        class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 mb-1">E-mail Address</label>
                                 <input type="email" name="email" id="customerEmail"
-                                       value="{{ old('email') }}"
+                                       value="{{ old('email', $prefill['email'] ?? '') }}"
                                        class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             </div>
                         </div>
@@ -84,12 +87,17 @@
                             <select name="contact_person" id="contactPersonSelect"
                                     class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                                 <option value="">-- Select contact --</option>
+                                @if(old('contact_person', $prefill['contact_person'] ?? ''))
+                                    <option value="{{ old('contact_person', $prefill['contact_person'] ?? '') }}" selected>
+                                        {{ old('contact_person', $prefill['contact_person'] ?? '') }}
+                                    </option>
+                                @endif
                             </select>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Designation</label>
                             <input type="text" name="designation" id="contactDesignation"
-                                   value="{{ old('designation') }}"
+                                   value="{{ old('designation', $prefill['designation'] ?? '') }}"
                                    class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         </div>
                         <div>
@@ -137,7 +145,7 @@
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Quotation No.</label>
                             <input type="text" name="quotation_number"
-                                   value="{{ old('quotation_number') }}"
+                                   value="{{ old('quotation_number', $prefill['quotation_number'] ?? '') }}"
                                    class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         </div>
                         <div>
@@ -210,6 +218,7 @@
                                 'id' => $p->id,
                                 'name' => trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? '')),
                                 'designation' => $p->position,
+                                'email' => $p->email,
                             ];
                         })
                         ->values(),
@@ -273,6 +282,7 @@
                         opt.value = item.name || item.id;
                         opt.textContent = item.name || '';
                         opt.dataset.designation = item.designation || '';
+                        opt.dataset.email = item.email || '';
                         select.appendChild(opt);
                     });
                 }
@@ -281,9 +291,25 @@
                     fillCustomer(e.target.value);
                 });
 
+                // Autofill immediately when a customer is already selected (e.g., from Proceed to Receiving)
+                if (customerSelect?.value) {
+                    fillCustomer(customerSelect.value);
+                    // Also set designation/email if a prefilled contact is present
+                    const sel = contactSelect?.selectedOptions[0];
+                    if (sel) {
+                        designation.value = sel.dataset.designation || '';
+                        if (sel.dataset.email) {
+                            email.value = sel.dataset.email;
+                        }
+                    }
+                }
+
                 contactSelect?.addEventListener('change', (e) => {
                     const sel = e.target.selectedOptions[0];
                     designation.value = sel ? sel.dataset.designation || '' : '';
+                    if (sel?.dataset.email) {
+                        email.value = sel.dataset.email;
+                    }
                 });
 
                 toFollow?.addEventListener('change', (e) => {
@@ -302,6 +328,7 @@
                 const uutBody = document.getElementById('uut-body');
                 const addBtn = document.getElementById('addUutRow');
                 let uutIndex = 0;
+                const seedUut = @json($prefillUut ?? []);
 
                 function addUutRow() {
                     const row = document.createElement('tr');
@@ -392,25 +419,37 @@
                 }
 
                 addBtn?.addEventListener('click', addUutRow);
-                // start with one row
-                addUutRow();
+                function setVal(row, idx, field, val) {
+                    const el = row.querySelector(`[name="uut[${idx}][${field}]"]`);
+                    if (el) el.value = val ?? '';
+                }
+
+                if (seedUut.length) {
+                    seedUut.forEach((u) => {
+                        addUutRow();
+                        const row = uutBody.lastElementChild;
+                        if (!row) return;
+                        const idx = uutIndex - 1;
+                        setVal(row, idx, 'accreditation', u.accreditation);
+                        setVal(row, idx, 'service_type', u.service_type);
+                        setVal(row, idx, 'capability', u.capability);
+                        setVal(row, idx, 'description', u.description);
+                        setVal(row, idx, 'type', u.type);
+                        setVal(row, idx, 'receiving_method', u.receiving_method);
+                        setVal(row, idx, 'qty', u.qty);
+                        setVal(row, idx, 'unit', u.unit);
+                        setVal(row, idx, 'lead_time', u.lead_time);
+                        setVal(row, idx, 'rush_fee', u.rush_fee);
+                        setVal(row, idx, 'discount', u.discount);
+                    });
+                } else {
+                    // start with one row
+                    addUutRow();
+                }
             })();
         </script>
     @endpush
 @endsection
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

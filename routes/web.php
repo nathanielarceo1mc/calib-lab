@@ -73,6 +73,8 @@ Route::middleware('auth')->group(function () {
     Route::resource('quotations', QuotationController::class);
     Route::post('quotations/{quotation}/approve', [QuotationController::class, 'approve'])
         ->name('quotations.approve');
+    Route::post('quotations/{quotation}/proceed', [QuotationController::class, 'proceedToReceiving'])
+        ->name('quotations.proceed');
 
     // User Accounts
     Route::resource('users', UserController::class)->except(['show']);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\WorkOrder;
 use App\Models\Customer;
 use App\Models\UnitUnderTest;
+use App\Models\Quotation;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -26,6 +27,10 @@ class ReceivingController extends Controller
               ->where('assigned_approver_id', optional(auth()->user())->id);
         })->count();
 
+        $proceedCount = \App\Models\Quotation::where('status', 'approved')
+            ->where('proceed_to_receiving', true)
+            ->count();
+
         $query = WorkOrder::orderBy('order_date', 'desc')
             ->orderBy('id', 'desc');
 
@@ -34,6 +39,21 @@ class ReceivingController extends Controller
                 $q->where('status', 'for_approval')
                   ->where('assigned_approver_id', optional(auth()->user())->id);
             });
+        } elseif ($filter === 'for-wo') {
+            // Skip fetching work orders; show proceeded quotations instead
+            $jobs = collect();
+            $proceededQuotations = \App\Models\Quotation::where('status', 'approved')
+                ->where('proceed_to_receiving', true)
+                ->orderByDesc('created_at')
+                ->get();
+
+            return view('receiving.index', [
+                'jobs'                => $jobs,
+                'forApprovalCount'    => $forApprovalCount,
+                'proceedCount'        => $proceedCount,
+                'activeFilter'        => $filter,
+                'proceededQuotations' => $proceededQuotations,
+            ]);
         }
 
         $jobs = $query->get();
@@ -41,7 +61,9 @@ class ReceivingController extends Controller
         return view('receiving.index', [
             'jobs'             => $jobs,
             'forApprovalCount' => $forApprovalCount,
+            'proceedCount'     => $proceedCount,
             'activeFilter'     => $filter,
+            'proceededQuotations' => collect(),
         ]);
     }
 
@@ -73,9 +95,46 @@ class ReceivingController extends Controller
             ->orderBy('business_name', 'asc')
             ->get();
 
+        $prefill = null;
+        $prefillUut = [];
+        if ($qid = request()->get('quotation_id')) {
+            $quote = Quotation::with('units')->find($qid);
+            if ($quote) {
+                $prefill = [
+                    'customer_id' => $quote->customer_id,
+                    'address' => $quote->address,
+                    'telephone' => $quote->telephone,
+                    'email' => $quote->contact_email,
+                    'contact_person' => $quote->contact_person,
+                    'designation' => $quote->designation ?? null,
+                    'end_user' => $quote->end_user ?? null,
+                    'discount_percent' => $quote->discount_percent ?? 0,
+                    'quotation_number' => $quote->quote_no,
+                ];
+
+                $prefillUut = $quote->units->map(function ($u) {
+                    return [
+                        'accreditation' => $u->accreditation,
+                        'service_type' => $u->service_type,
+                        'capability' => $u->scope,
+                        'description' => $u->description,
+                        'type' => $u->type,
+                        'receiving_method' => null,
+                        'qty' => $u->qty,
+                        'unit' => $u->uom,
+                        'lead_time' => $u->lead_time,
+                        'rush_fee' => $u->rush_fee,
+                        'discount' => $u->discount,
+                    ];
+                })->values()->all();
+            }
+        }
+
         return view('receiving.create', [
             'newOrderNumber'   => $newOrderNumber,
             'customers'        => $customers,
+            'prefill'          => $prefill,
+            'prefillUut'       => $prefillUut,
         ]);
     }
     /**
