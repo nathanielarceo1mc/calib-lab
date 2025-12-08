@@ -60,15 +60,21 @@
                                             data-payment-terms="{{ $customer->payment_terms }}"
                                             data-vat-type="{{ $customer->vat_type }}"
                                             data-contact-person="{{ $customer->primary_contact }}"
-                                            data-contacts='@json(
+                                            data-contacts="{{ json_encode(
                                                 $customer->contactPersons
                                                     ->map(function ($p) {
-                                                        return trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? ''))
-                                                            ?: ($p->full_name ?? $p->position ?? '');
+                                                        return [
+                                                            'name' => trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? ''))
+                                                                ?: ($p->full_name ?? $p->position ?? ''),
+                                                            'email' => $p->email ?? $p->contact_email ?? null,
+                                                            'phone' => $p->mobile ?? $p->phone ?? null,
+                                                        ];
                                                     })
-                                                    ->filter()
+                                                    ->filter(function ($p) {
+                                                        return !empty($p['name']);
+                                                    })
                                                     ->values()
-                                            )'
+                                            ) }}"
                                             @selected(old('customer_id') == $customer->id)>
                                         {{ $customer->business_name }}
                                     </option>
@@ -129,6 +135,8 @@
                                     <option value="{{ old('contact_person') }}">{{ old('contact_person') }}</option>
                                 @endif
                             </select>
+                            <input type="hidden" name="contact_email" id="contact_email_input" value="{{ old('contact_email') }}">
+                            <input type="hidden" name="contact_phone" id="contact_phone_input" value="{{ old('contact_phone') }}">
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Reference</label>
@@ -246,6 +254,10 @@
                             class="px-5 py-2 rounded-full bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
                         Save
                     </button>
+                    <button type="submit" name="submit_for_approval" value="1"
+                            class="px-5 py-2 rounded-full border border-emerald-200 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100">
+                        Submit for approval
+                    </button>
                 </div>
             </div>
         </form>
@@ -286,64 +298,64 @@
                 row.className = 'uut-row odd:bg-white even:bg-slate-50';
                 row.innerHTML = `
                     <td class="px-2 py-1">
-                        <select name="uut[${uutIndex}][accreditation]" class="w-full border border-slate-300 rounded-md text-xs">
+                        <select name="uut[${uutIndex}][accreditation]" class="uut-autosize border border-slate-300 rounded-md text-xs">
                             <option value="">-</option>
                             ${accreditationOptions.map(o => `<option value="${o.value}">${o.value}</option>`).join('')}
                         </select>
                     </td>
                     <td class="px-2 py-1">
-                        <select name="uut[${uutIndex}][service_type]" class="w-full border border-slate-300 rounded-md text-xs">
+                        <select name="uut[${uutIndex}][service_type]" class="uut-autosize border border-slate-300 rounded-md text-xs">
                             <option value="">-</option>
                             ${optionTags(serviceTypeOptions)}
                         </select>
                     </td>
                     <td class="px-2 py-1">
-                        <input type="text" name="uut[${uutIndex}][scope]" class="w-full border border-slate-300 rounded-md text-xs">
+                        <input type="text" name="uut[${uutIndex}][scope]" class="uut-autosize border border-slate-300 rounded-md text-xs">
                     </td>
                     <td class="px-2 py-1">
-                        <textarea name="uut[${uutIndex}][description]" class="w-full min-w-[180px] border border-slate-300 rounded-md text-xs resize-y h-10"></textarea>
+                        <textarea name="uut[${uutIndex}][description]" class="uut-autosize min-w-[180px] border border-slate-300 rounded-md text-xs resize-none h-10"></textarea>
                     </td>
                     <td class="px-2 py-1">
-                        <input type="text" name="uut[${uutIndex}][range]" class="w-full min-w-[140px] border border-slate-300 rounded-md text-xs">
+                        <input type="text" name="uut[${uutIndex}][range]" class="uut-autosize min-w-[140px] border border-slate-300 rounded-md text-xs">
                     </td>
                     <td class="px-2 py-1">
-                        <input type="text" name="uut[${uutIndex}][cmc]" class="w-full min-w-[140px] border border-slate-300 rounded-md text-xs">
+                        <input type="text" name="uut[${uutIndex}][cmc]" class="uut-autosize min-w-[140px] border border-slate-300 rounded-md text-xs">
                     </td>
                     <td class="px-2 py-1">
-                        <input type="text" name="uut[${uutIndex}][method]" class="w-full min-w-[140px] border border-slate-300 rounded-md text-xs">
+                        <input type="text" name="uut[${uutIndex}][method]" class="uut-autosize min-w-[140px] border border-slate-300 rounded-md text-xs">
                     </td>
                     <td class="px-2 py-1">
-                        <input type="text" name="uut[${uutIndex}][environment]" class="w-full min-w-[160px] border border-slate-300 rounded-md text-xs">
+                        <input type="text" name="uut[${uutIndex}][environment]" class="uut-autosize min-w-[160px] border border-slate-300 rounded-md text-xs">
                     </td>
                     <td class="px-2 py-1">
-                        <select name="uut[${uutIndex}][type]" class="w-full border border-slate-300 rounded-md text-xs">
+                        <select name="uut[${uutIndex}][type]" class="uut-autosize border border-slate-300 rounded-md text-xs">
                             <option value="">-</option>
                             ${optionTags(testTypeOptions)}
                         </select>
                     </td>
                     <td class="px-2 py-1">
-                        <input type="number" step="1" min="0" name="uut[${uutIndex}][qty]" class="uut-qty w-full border border-slate-300 rounded-md text-xs">
+                        <input type="number" step="1" min="0" name="uut[${uutIndex}][qty]" class="uut-qty uut-autosize border border-slate-300 rounded-md text-xs">
                     </td>
                     <td class="px-2 py-1">
-                        <input type="text" name="uut[${uutIndex}][uom]" class="w-full border border-slate-300 rounded-md text-xs">
+                        <input type="text" name="uut[${uutIndex}][uom]" class="uut-autosize border border-slate-300 rounded-md text-xs">
                     </td>
                     <td class="px-2 py-1">
-                        <input type="number" step="0.01" min="0" name="uut[${uutIndex}][price]" class="uut-price w-full border border-slate-300 rounded-md text-xs price-field">
+                        <input type="number" step="0.01" min="0" name="uut[${uutIndex}][price]" class="uut-price uut-autosize border border-slate-300 rounded-md text-xs price-field">
                     </td>
                     <td class="px-2 py-1">
-                        <input type="number" step="0.01" min="0" name="uut[${uutIndex}][discount]" class="uut-discount w-full border border-slate-300 rounded-md text-xs price-field">
+                        <input type="number" step="0.01" min="0" name="uut[${uutIndex}][discount]" class="uut-discount uut-autosize border border-slate-300 rounded-md text-xs price-field">
                     </td>
                     <td class="px-2 py-1">
-                        <input type="number" step="0.01" min="0" name="uut[${uutIndex}][rush_fee]" class="uut-rush w-full border border-slate-300 rounded-md text-xs price-field">
+                        <input type="number" step="0.01" min="0" name="uut[${uutIndex}][rush_fee]" class="uut-rush uut-autosize border border-slate-300 rounded-md text-xs price-field">
                     </td>
                     <td class="px-2 py-1">
-                        <select name="uut[${uutIndex}][lead_time]" class="w-full border border-slate-300 rounded-md text-xs">
+                        <select name="uut[${uutIndex}][lead_time]" class="uut-autosize border border-slate-300 rounded-md text-xs">
                             <option value="">-</option>
                             ${optionTags(leadTimeOptions)}
                         </select>
                     </td>
                     <td class="px-2 py-1">
-                        <textarea name="uut[${uutIndex}][notes]" class="w-full border border-slate-300 rounded-md text-xs resize-y"></textarea>
+                        <textarea name="uut[${uutIndex}][notes]" class="uut-autosize border border-slate-300 rounded-md text-xs resize-none"></textarea>
                     </td>
                     <td class="px-2 py-1 text-center">
                         <button type="button" class="inline-flex items-center justify-center h-7 w-7 rounded bg-rose-500 text-white text-xs delete-row">x</button>
@@ -381,14 +393,39 @@
                 });
             }
 
+            function resizeControl(el) {
+                if (!el) return;
+                const minW = 110;
+                const maxW = 420;
+                el.style.width = 'auto';
+                const targetW = Math.min(maxW, Math.max(minW, el.scrollWidth + 14));
+                el.style.width = `${targetW}px`;
+                if (el.tagName === 'TEXTAREA') {
+                    el.style.height = 'auto';
+                    el.style.height = `${el.scrollHeight + 6}px`;
+                }
+            }
+
+            function attachAutosize(row) {
+                row.querySelectorAll('.uut-autosize').forEach((el) => {
+                    resizeControl(el);
+                    el.addEventListener('input', () => resizeControl(el));
+                    el.addEventListener('change', () => resizeControl(el));
+                });
+            }
+
             addUutBtn?.addEventListener('click', () => {
                 buildUutRow(false);
-                attachUutRowListeners(uutBody.lastElementChild);
+                const last = uutBody.lastElementChild;
+                attachUutRowListeners(last);
+                attachAutosize(last);
                 recalcOverallTotals();
             });
             addBlankBtn?.addEventListener('click', () => {
                 buildUutRow(true);
-                attachUutRowListeners(uutBody.lastElementChild);
+                const last = uutBody.lastElementChild;
+                attachUutRowListeners(last);
+                attachAutosize(last);
                 recalcOverallTotals();
             });
 
@@ -403,6 +440,7 @@
                         if (el) el.value = u?.[f] ?? '';
                     });
                     attachUutRowListeners(row);
+                    attachAutosize(row);
                 });
             }
             recalcOverallTotals();
@@ -483,6 +521,8 @@
                 const vatSelect = document.getElementById('customer_vat_type');
                 const customerNameInput = document.getElementById('customer_name_input');
                 const contactPersonSel = document.getElementById('customer_contact_person');
+                const contactEmailInput = document.getElementById('contact_email_input');
+                const contactPhoneInput = document.getElementById('contact_phone_input');
 
                 function rebuildContacts(list) {
                     if (!contactPersonSel) return;
@@ -491,11 +531,13 @@
                     placeholder.value = '';
                     placeholder.textContent = '-- Select contact --';
                     contactPersonSel.appendChild(placeholder);
-                    (list || []).forEach((name) => {
-                        if (!name) return;
+                    (list || []).forEach((item) => {
+                        if (!item || !item.name) return;
                         const optEl = document.createElement('option');
-                        optEl.value = name;
-                        optEl.textContent = name;
+                        optEl.value = item.name;
+                        optEl.textContent = item.name;
+                        if (item.email) optEl.dataset.email = item.email;
+                        if (item.phone) optEl.dataset.phone = item.phone;
                         contactPersonSel.appendChild(optEl);
                     });
                 }
@@ -531,6 +573,14 @@
                     }
                     if (customerNameInput) customerNameInput.value = opt.textContent.trim();
                     rebuildContacts(contacts);
+                    // auto-pick first contact if available
+                    if (contactPersonSel && contactPersonSel.options.length > 1) {
+                        contactPersonSel.selectedIndex = 1;
+                        contactPersonSel.dispatchEvent(new Event('change'));
+                    } else {
+                        if (contactEmailInput) contactEmailInput.value = '';
+                        if (contactPhoneInput) contactPhoneInput.value = '';
+                    }
                 }
 
                 select.addEventListener('change', function () {
@@ -543,15 +593,34 @@
                         if (paymentTermsEl) paymentTermsEl.value = '';
                         if (vatSelect) vatSelect.value = '';
                         rebuildContacts([]);
+                        if (contactEmailInput) contactEmailInput.value = '';
+                        if (contactPhoneInput) contactPhoneInput.value = '';
                         return;
                     }
                     fillFromOption(opt);
                 });
 
+                if (contactPersonSel) {
+                    contactPersonSel.addEventListener('change', () => {
+                        const opt = contactPersonSel.options[contactPersonSel.selectedIndex];
+                        if (!opt) return;
+                        if (contactEmailInput) contactEmailInput.value = opt.dataset.email || '';
+                        if (contactPhoneInput) contactPhoneInput.value = opt.dataset.phone || '';
+                    });
+                }
+
                 // Pre-fill if old value exists
                 if (select.value) {
                     const opt = select.options[select.selectedIndex];
                     if (opt) fillFromOption(opt);
+                    // if old contact exists, set hidden values
+                    if (contactPersonSel && contactPersonSel.value) {
+                        const optContact = contactPersonSel.options[contactPersonSel.selectedIndex];
+                        if (optContact) {
+                            if (contactEmailInput) contactEmailInput.value = optContact.dataset.email || '';
+                            if (contactPhoneInput) contactPhoneInput.value = optContact.dataset.phone || '';
+                        }
+                    }
                 }
             })();
         })();

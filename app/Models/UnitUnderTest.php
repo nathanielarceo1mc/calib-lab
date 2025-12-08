@@ -57,6 +57,15 @@ class UnitUnderTest extends Model
         'special_instructions',
         'test_points',
         'approver_remarks',
+
+        'uut_status',
+        'reporting_status',
+        'date_performed',
+        'certificate_path',
+        'datasheet_path',
+        'tsrf_path',
+        'report_payload',
+        'report_custom_html',
     ];
 
     protected $casts = [
@@ -68,6 +77,11 @@ class UnitUnderTest extends Model
         'require_opinion'           => 'boolean',
         'deviate_methods'           => 'boolean',
         'request_new_method'        => 'boolean',
+        'date_performed'            => 'date',
+        'certificate_path'          => 'array',
+        'datasheet_path'            => 'array',
+        'tsrf_path'                 => 'array',
+        'report_payload'            => 'array',
     ];
 
     public function workOrder()

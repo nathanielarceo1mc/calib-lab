@@ -65,6 +65,9 @@ Route::middleware('auth')->group(function () {
 
     // Technical (Unit Under Test lines)
     Route::resource('technical', UnitUnderTestController::class);
+    Route::get('technical/{unit}/download/{file}', [UnitUnderTestController::class, 'download'])
+        ->name('technical.download')
+        ->whereIn('file', ['certificate', 'datasheet', 'tsrf']);
 
     // ❌ old jobs routes removed – WorkOrder replaces them
     // Route::resource('jobs', JobOrderController::class);
