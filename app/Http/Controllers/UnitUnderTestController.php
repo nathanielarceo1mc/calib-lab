@@ -21,8 +21,8 @@ class UnitUnderTestController extends Controller
             'approver',
             'personnel',
         ])
-        ->orderByDesc('id')
-        ->get();
+            ->orderByDesc('id')
+            ->get();
 
         return view('technical.index', compact('units'));
     }
@@ -46,7 +46,8 @@ class UnitUnderTestController extends Controller
             'datasheet'   => $this->extractStoragePath($unit->datasheet_path),
             'tsrf'        => $this->extractStoragePath($unit->tsrf_path),
         ];
-        $fileRequiredBase = in_array($mode, ['files', 'generate'], true);
+
+        $fileRequiredBase   = in_array($mode, ['files', 'generate'], true);
         $requireCertificate = $fileRequiredBase && empty($existingPaths['certificate']);
         $requireDatasheet   = $fileRequiredBase && empty($existingPaths['datasheet']);
         $requireTsrf        = $fileRequiredBase && empty($existingPaths['tsrf']);
@@ -92,16 +93,22 @@ class UnitUnderTestController extends Controller
         $updates = $data;
         foreach (['certificate' => 'certificate_path', 'datasheet' => 'datasheet_path', 'tsrf' => 'tsrf_path'] as $input => $column) {
             if ($request->hasFile($input)) {
-                $file = $request->file($input);
-                $original = $file->getClientOriginalName();
+                $file       = $request->file($input);
+                $original   = $file->getClientOriginalName();
                 $storedName = uniqid($input . '_') . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs("public/technical/{$input}s", $storedName);
-                // Verify existence immediately
+                $path       = $file->storeAs("public/technical/{$input}s", $storedName);
+
                 $exists = Storage::exists($path);
-                Log::info("UUT upload", ['uut_id' => $unit->id, 'input' => $input, 'path' => $path, 'exists' => $exists]);
+                Log::info("UUT upload", [
+                    'uut_id' => $unit->id,
+                    'input'  => $input,
+                    'path'   => $path,
+                    'exists' => $exists,
+                ]);
+
                 if (!$exists) {
-                    $updates[$column] = null;
-                    $updates['report_payload'] = null;
+                    $updates[$column]           = null;
+                    $updates['report_payload']  = null;
                 } else {
                     $this->deleteStoredFile($existingPaths[$input]);
                     $updates[$column] = [
@@ -109,7 +116,6 @@ class UnitUnderTestController extends Controller
                         'name' => $original,
                     ];
 
-                    // Parse excel for certificate to build preview payload
                     if ($input === 'certificate') {
                         $parsed = $this->parseCertificate(Storage::path($path));
                         if (!empty($parsed)) {
@@ -173,13 +179,14 @@ class UnitUnderTestController extends Controller
         }
 
         $parseError = null;
-        // If generating certificate, always parse the current certificate file to refresh preview payload
+
         if ($request->has('generate_certificate')) {
             $certificateArr = $updates['certificate_path'] ?? $unit->certificate_path;
-            $path = $this->extractStoragePath($certificateArr);
+            $path           = $this->extractStoragePath($certificateArr);
+
             if ($path && Storage::exists($path)) {
-                $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-                $parsed = in_array($ext, ['xlsx','xlsm','xls']) ? $this->parseCertificate(Storage::path($path)) : [];
+                $ext    = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                $parsed = in_array($ext, ['xlsx', 'xlsm', 'xls']) ? $this->parseCertificate(Storage::path($path)) : [];
                 if (!empty($parsed)) {
                     $unit->update(['report_payload' => $parsed]);
                 } else {
@@ -205,17 +212,22 @@ class UnitUnderTestController extends Controller
             'datasheet'   => 'datasheet_path',
             'tsrf'        => 'tsrf_path',
         ];
+
         if (!isset($map[$file])) {
             abort(404);
         }
-        $column = $map[$file];
+
+        $column     = $map[$file];
         $storageVal = $unit->{$column};
-        $path = is_array($storageVal) ? ($storageVal['path'] ?? null) : $storageVal;
+        $path       = is_array($storageVal) ? ($storageVal['path'] ?? null) : $storageVal;
+
         if (!$path || !Storage::exists($path)) {
             abort(404);
         }
+
         $originalName = is_array($storageVal) ? ($storageVal['name'] ?? null) : null;
-        $name = $originalName ?: ($file . '.' . pathinfo($path, PATHINFO_EXTENSION));
+        $name         = $originalName ?: ($file . '.' . pathinfo($path, PATHINFO_EXTENSION));
+
         return Storage::download($path, $name);
     }
 
@@ -266,205 +278,288 @@ class UnitUnderTestController extends Controller
         }
     }
 
+    /**
+     * Parse certificate Excel and build payload used by the preview/modal.
+     */
     protected function parseCertificate(string $absolutePath): array
     {
         if (!is_file($absolutePath)) {
             return [];
         }
+
         try {
             $spreadsheet = IOFactory::load($absolutePath);
         } catch (\Throwable $e) {
             return [];
         }
 
-        // Try to locate the sheet by common names (case-insensitive)
-        $sheet = null;
-        $wanted = ['consolidate_report', 'consolidated_report'];
-        foreach ($spreadsheet->getAllSheets() as $sh) {
-            $title = strtolower(trim($sh->getTitle()));
-            if (in_array($title, $wanted, true)) {
-                $sheet = $sh;
-                break;
-            }
-        }
-        if (!$sheet) {
-            /** @var Worksheet $sheet */
-            $sheet = $spreadsheet->getSheetByName('Consolidate_Report')
-                ?: $spreadsheet->getSheetByName('Consolidated_Report')
-                ?: $spreadsheet->getActiveSheet();
-        }
+        /** @var Worksheet|null $sheet */
+        $sheet = $spreadsheet->getSheetByName('Consolidated_Report')
+            ?: $spreadsheet->getSheetByName('consolidated_report')
+            ?: $spreadsheet->getActiveSheet();
+
         if (!$sheet) {
             return [];
         }
 
         $rows = $sheet->toArray(null, true, true, true);
-        $matrix = [];
-        foreach ($rows as $rIdx => $row) {
-            $matrix[$rIdx] = [];
-            foreach ($row as $cIdx => $val) {
-                $matrix[$rIdx][$cIdx] = is_string($val) ? trim($val) : $val;
+
+        // ---------- helpers ----------
+
+        // First + last non-empty per row (with col code)
+        $rowFirstLast = function (array $row): array {
+            $first = null;
+            $last  = null;
+
+            foreach ($row as $col => $value) {
+                $trim = trim((string) $value);
+                if ($trim === '') {
+                    continue;
+                }
+
+                if ($first === null) {
+                    $first = [
+                        'col'   => $col,
+                        'value' => $trim,
+                    ];
+                }
+
+                $last = [
+                    'col'   => $col,
+                    'value' => $trim,
+                ];
             }
-        }
-        $payload = [
-            'meta' => [],
-            'traceability' => [],
-            'calibration_results' => [],
-            'tolerances' => [],
-            'remarks' => '',
-            'uncertainty' => '',
-            'authorization' => [],
-            'method' => [],
-            'environment' => [],
-        ];
-        // Capture raw HTML representation of the selected sheet to mirror the consolidated_report layout exactly
-        $payload['raw_html'] = $this->sheetToHtml($sheet);
 
-        // Helper to normalize keys
-        $norm = function ($v) {
-            $v = strtolower(trim((string) $v));
-            $v = str_replace(':', '', $v);
-            $v = preg_replace('/\s+/', ' ', $v);
-            return $v;
+            return [$first, $last];
         };
 
-        // Sectioned parsing based on known row layout of consolidated.xlsx
-        $cell = function ($r, $c) use ($matrix) {
-            return $matrix[$r][$c] ?? '';
+        // Normalize line breaks, keep <br> and inline tags
+        $normalizeCell = function ($val) {
+            if (!is_string($val)) {
+                return $val;
+            }
+            $val = str_replace(['</br>', '<br/>', '<br />'], '<br>', $val);
+            return $val;
         };
-        $styled = function (int $r, string $c) use ($sheet) {
-            $coord = $c . $r;
+
+        // Styled cell (preserve italics as <i>)
+        $styled = function (int $r, string $c) use ($sheet): string {
+            $coord   = $c . $r;
             $cellObj = $sheet->getCell($coord);
-            $val = trim((string) $cellObj->getFormattedValue());
-            $font = $sheet->getStyle($coord)->getFont();
+            $val     = trim((string) $cellObj->getFormattedValue());
+
+            $font   = $sheet->getStyle($coord)->getFont();
             $italic = $font ? $font->getItalic() : false;
+
             if ($italic && $val !== '') {
                 return '<i>' . $val . '</i>';
             }
+
             return $val;
         };
-        $join = function (...$parts) {
-            $parts = array_map(fn($v) => trim((string) $v), $parts);
-            $parts = array_filter($parts, fn($v) => $v !== '');
-            return implode(' ', $parts);
+
+        // Detect section headings "1. CUSTOMER DETAILS", "2. SPECIFICATION...", etc.
+        $sections = [];
+        foreach ($rows as $idx => $row) {
+            [$first, ] = $rowFirstLast($row);
+            if (!$first) {
+                continue;
+            }
+
+            $text = $first['value'];
+            if (preg_match('/^(\d+)\.\s*(.+)$/', $text, $m)) {
+                $num   = (int) $m[1];
+                $title = $m[2];
+                $sections[$num] = ['row' => $idx, 'title' => $title];
+            }
+        }
+        ksort($sections);
+
+        $getRange = function (int $sectionNo) use ($rows, $sections): array {
+            if (!isset($sections[$sectionNo])) {
+                return [null, null];
+            }
+
+            $start = $sections[$sectionNo]['row'] + 1;
+
+            $keys   = array_keys($sections);
+            $pos    = array_search($sectionNo, $keys, true);
+            $maxRow = max(array_keys($rows));
+
+            if ($pos === false || $pos === count($keys) - 1) {
+                $end = $maxRow;
+            } else {
+                $nextNo = $keys[$pos + 1];
+                $end    = $sections[$nextNo]['row'] - 1;
+            }
+
+            return [$start, $end];
         };
 
-        // Customer details
-        $payload['meta']['customer'] = $styled(4, 'B');
-        $payload['meta']['address'] = $styled(6, 'B');
-        // Preserve the raw text (including any embedded tags or labels) from the sheet
-        $payload['meta']['end_user'] = $join($styled(8, 'B'), $styled(9, 'B'));
-        $payload['meta']['end_user_address'] = $join($styled(10, 'B'), $styled(11, 'B'));
-        // Build a raw block for customer details (rows 4-11, col B) to render exactly as in the sheet
-        $customerLines = [];
-        foreach ([4,5,6,7,8,9,10,11] as $r) {
-            $val = $cell($r, 'B');
-            if ($val !== '' && $val !== null) {
-                $customerLines[] = $val;
+        // Generic label/value block parser using first/last cell
+        $parseLabelValueBlock = function (int $start, int $end) use ($rows, $rowFirstLast, $normalizeCell): array {
+            $out = [];
+
+            for ($r = $start; $r <= $end; $r++) {
+                if (!isset($rows[$r])) {
+                    continue;
+                }
+
+                [$first, $last] = $rowFirstLast($rows[$r]);
+
+                if (!$first && !$last) {
+                    continue;
+                }
+
+                $labelRaw = $first ? $first['value'] : '';
+                $label    = rtrim($labelRaw, ':');
+
+                $value = $last ? $normalizeCell($last['value']) : '';
+
+                $out[] = [
+                    'row'   => $r,
+                    'label' => $label,
+                    'value' => $value,
+                ];
             }
+
+            return $out;
+        };
+
+        // ---------- payload skeleton ----------
+
+        $payload = [
+            'meta'       => [],
+            'sections'   => [
+                'customer'      => [],
+                'specification' => [],
+                'dates'         => [],
+            ],
+            'authorization'       => [],
+            'method'              => [],
+            'environment'         => [],
+            'traceability'        => [],
+            'calibration_results' => [],
+        ];
+
+        // Certificate no. (still assume A1)
+        $payload['meta']['certificate_no'] = $styled(1, 'A');
+
+        // ---------- 1. CUSTOMER DETAILS ----------
+        $customerBlockStart = null;
+        if (isset($sections[1])) {
+            $customerBlockStart = $sections[1]['row'] + 1;
         }
-        $payload['customer_block'] = implode("\n", $customerLines);
 
-        // UUT specs
-        $payload['meta']['uut_name'] = $styled(14, 'D');
-        $payload['meta']['material'] = $styled(15, 'D');
-        $payload['meta']['manufacturer'] = $styled(16, 'D');
-        $payload['meta']['model'] = $styled(17, 'D');
-        $payload['meta']['serial_number'] = $styled(18, 'D');
-        $payload['meta']['identification'] = $styled(19, 'D');
-        // Build raw spec block (labels + values) from rows 13-20, cols B and D
-        $specLines = [];
-        foreach (range(13, 20) as $r) {
-            $label = trim((string) $cell($r, 'B'));
-            $val = trim((string) $cell($r, 'D'));
-            if ($label === '' && $val === '') {
-                continue;
-            }
-            $specLines[] = trim($label . ' ' . $val);
-        }
-        $payload['spec_block'] = implode("\n", $specLines);
+        if ($customerBlockStart !== null) {
+            $maxRow = max(array_keys($rows));
 
-        // Dates
-        $payload['meta']['date_received'] = $styled(22, 'D');
-        $payload['meta']['date_calibrated'] = $styled(23, 'D');
-        $payload['meta']['recommended_due'] = $styled(24, 'D');
-        $payload['meta']['date_issued'] = $styled(25, 'D');
+            for ($r = $customerBlockStart; $r <= $maxRow; $r++) {
+                if (!isset($rows[$r])) {
+                    continue;
+                }
 
-        // Authorization
-        $payload['authorization'] = [
-            'calibrated_by' => $styled(31, 'B'),
-            'calibrated_title' => $styled(32, 'B'),
-            'reviewed_by' => $styled(31, 'E'),
-            'reviewed_title' => $styled(32, 'E'),
-        ];
+                [$first, $last] = $rowFirstLast($rows[$r]);
 
-        // Method
-        $payload['method'] = [
-            'method_used' => $styled(35, 'D'),
-            'type_of_calibration' => $styled(36, 'D'),
-            'location' => trim($join($styled(37, 'D'), $styled(38, 'D'), $styled(39, 'D'))),
-        ];
-
-        // Environment
-        $payload['environment'] = [
-            'temperature' => $styled(43, 'E'),
-            'relative_humidity' => $styled(44, 'E'),
-        ];
-
-        // Traceability table
-        $payload['traceability'] = $this->extractTable($rows, [
-            'standard used',
-            'manufacturer/ model',
-        ], ['B','D','F','H','J']);
-
-        // Calibration results table (Nominal Value header)
-        $payload['calibration_results'] = $this->extractTable($rows, [
-            'nominal value',
-            'central length error',
-        ], ['B','D','F','H']);
-
-        // Tolerance / permissible deviation table: read the explicit block to preserve spans/headers
-        $payload['tolerances_title'] = $styled(102, 'B');
-        // Include full 8 columns (Nominal + 2 cols per grade) so Grade 2 variation is retained
-        $payload['tolerances'] = $this->extractRange($rows, 103, 110, ['B','C','D','E','F','G','H','I']);
-
-        // Uncertainty text (collect consecutive rows after the 'uncertainty' label until a blank or 'remarks')
-        $uncertainty = [];
-        $collecting = false;
-        foreach ($rows as $idx => $row) {
-            $labelA = strtolower(trim((string) ($row['A'] ?? '')));
-            $textB = trim((string) ($row['B'] ?? ''));
-            if (!$collecting && str_contains($labelA, 'uncertainty')) {
-                $collecting = true;
-                // Capture current row text (prefer B, else A)
-                $uncertainty[] = $textB !== '' ? $textB : trim((string) ($row['A'] ?? ''));
-                continue;
-            }
-            if ($collecting) {
-                if ($labelA === '' && $textB === '') {
+                // Stop sa next numbered heading (2., 3., etc.)
+                if ($first && preg_match('/^\d+\.\s+/', $first['value'])) {
                     break;
                 }
-                if (str_contains($labelA, 'remarks')) {
-                    break;
+
+                if (!$first && !$last) {
+                    continue;
                 }
-                if ($textB !== '') {
-                    $uncertainty[] = $textB;
+
+                // Label: prefer column C kung may laman, else first non-empty
+                $labelCell = $rows[$r]['C'] ?? null;
+                $labelText = trim((string) $labelCell);
+                if ($labelText === '' && $first) {
+                    $labelText = $first['value'];
+                }
+                $label = rtrim($labelText, ':');
+
+                // Value: last non-empty cell, with italic styling preserved
+                $value = '';
+                if ($last) {
+                    $value = $styled($r, $last['col']);
+                    $value = $normalizeCell($value);
+                }
+
+                if ($label === '' && $value === '') {
+                    continue;
+                }
+
+                $payload['sections']['customer'][] = [
+                    'row'   => $r,
+                    'label' => $label,
+                    'value' => $value,
+                ];
+
+                $lower = strtolower($label);
+
+                if (str_starts_with($lower, 'customer')) {
+                    $payload['meta']['customer'] = $value;
+                } elseif (str_starts_with($lower, 'address') && empty($payload['meta']['address'] ?? '')) {
+                    $payload['meta']['address'] = $value;
+                } elseif (str_starts_with($lower, 'end-user address')) {
+                    $payload['meta']['end_user_address'] = $value;
+                } elseif (str_starts_with($lower, 'end-user')) {
+                    $payload['meta']['end_user'] = $value;
                 }
             }
         }
-        $payload['uncertainty'] = trim(implode(' ', $uncertainty));
 
-        // Remarks (after '10. REMARKS')
-        $remarks = [];
-        foreach ([129,130,131,132,133,134] as $r) {
-            $letter = $cell($r, 'B');
-            $text = $cell($r, 'C');
-            if ($text !== '') {
-                $remarks[] = trim($letter . ' ' . $text);
+        // ---------- 2. SPECIFICATION OF UNIT UNDER TEST ----------
+        [$sStart, $sEnd] = $getRange(2);
+        if ($sStart && $sEnd) {
+            $specRows = $parseLabelValueBlock($sStart, $sEnd);
+            $payload['sections']['specification'] = $specRows;
+
+            foreach ($specRows as $row) {
+                $label = strtolower($row['label']);
+                $val   = $row['value'];
+
+                if (str_starts_with($label, 'unit under test')) {
+                    $payload['meta']['uut_name'] = $val;
+                } elseif (str_starts_with($label, 'range')) {
+                    $payload['meta']['range'] = $val;
+                } elseif (str_starts_with($label, 'graduation')) {
+                    $payload['meta']['graduation'] = $val;
+                } elseif (str_starts_with($label, 'manufacturer')) {
+                    $payload['meta']['manufacturer'] = $val;
+                } elseif (str_starts_with($label, 'model')) {
+                    $payload['meta']['model'] = $val;
+                } elseif (str_starts_with($label, 'serial number')) {
+                    $payload['meta']['serial_number'] = $val;
+                } elseif (str_starts_with($label, 'identification')) {
+                    $payload['meta']['identification'] = $val;
+                }
             }
         }
-        $payload['remarks'] = trim(implode("\n", array_filter($remarks)));
 
-        // Normalize any stray HTML-ish line breaks inside the generated sheet HTML (so </br> is rendered as <br>)
+        // ---------- 3. DATE OF ACTIVITIES ----------
+        [$dStart, $dEnd] = $getRange(3);
+        if ($dStart && $dEnd) {
+            $dateRows = $parseLabelValueBlock($dStart, $dEnd);
+            $payload['sections']['dates'] = $dateRows;
+
+            foreach ($dateRows as $row) {
+                $label = strtolower($row['label']);
+                $val   = $row['value'];
+
+                if (str_starts_with($label, 'date received')) {
+                    $payload['meta']['date_received'] = $val;
+                } elseif (str_starts_with($label, 'date calibrated')) {
+                    $payload['meta']['date_calibrated'] = $val;
+                } elseif (str_starts_with($label, 'recommended due')) {
+                    $payload['meta']['recommended_due'] = $val;
+                } elseif (str_starts_with($label, 'date issued')) {
+                    $payload['meta']['date_issued'] = $val;
+                }
+            }
+        }
+
+        // Full HTML (for comparison / printing)
         $payload['raw_html'] = $this->normalizeSheetHtml(
             $this->sheetToHtml($sheet)
         );
@@ -473,55 +568,95 @@ class UnitUnderTestController extends Controller
     }
 
     /**
-     * Extract a table by matching header labels (case-insensitive) in columns starting at A.
+     * Extract a table by matching header labels (case-insensitive).
      */
     protected function extractTable(array $rows, array $headerKeys, array $columns = null): array
     {
         $normalized = array_map(fn($h) => strtolower(trim($h)), $headerKeys);
-        $startIndex = null;
-        $rowKeys = array_keys($rows);
-        foreach ($rowKeys as $idx) {
-            $row = $rows[$idx];
+
+        $headerRowIndex = null;
+
+        // 1) Find header row
+        foreach ($rows as $idx => $row) {
             foreach ($row as $val) {
                 $cell = strtolower(trim((string) $val));
-                if ($cell === $normalized[0] || str_contains($cell, $normalized[0])) {
-                    $startIndex = $idx + 1;
-                    break 2;
+                foreach ($normalized as $needle) {
+                    if ($needle !== '' && ($cell === $needle || str_contains($cell, $needle))) {
+                        $headerRowIndex = $idx;
+                        break 3;
+                    }
                 }
             }
         }
-        if ($startIndex === null) {
+
+        if ($headerRowIndex === null) {
             return [];
         }
-        $table = [];
-        $max = max($rowKeys);
+
+        // 2) Determine which columns belong to this table
+        $headerCols = [];
+
+        if ($columns !== null) {
+            $headerCols = $columns;
+        } else {
+            foreach ($rows[$headerRowIndex] as $col => $val) {
+                if (trim((string) $val) !== '') {
+                    $headerCols[] = $col;
+                }
+            }
+        }
+
+        if (empty($headerCols)) {
+            return [];
+        }
+
+        // 3) Read downwards until an empty row after data
+        $startIndex = $headerRowIndex + 1;
+        $rowKeys    = array_keys($rows);
+        $max        = max($rowKeys);
+
+        $table    = [];
+        $seenData = false;
+
         for ($r = $startIndex; $r <= $max; $r++) {
             if (!isset($rows[$r])) {
                 continue;
             }
-            $row = $rows[$r];
+
+            $row     = $rows[$r];
             $isEmpty = true;
-            $item = [];
-            $cols = $columns ?: array_keys($row);
-            foreach ($cols as $col) {
+            $item    = [];
+
+            foreach ($headerCols as $col) {
                 $val = isset($row[$col]) ? trim((string) $row[$col]) : '';
                 if ($val !== '') {
                     $isEmpty = false;
                 }
                 $item[] = $val;
             }
-            if ($isEmpty) {
+
+            if ($isEmpty && !$seenData) {
+                continue;
+            }
+
+            if ($isEmpty && $seenData) {
                 break;
             }
-            $table[] = $item;
+
+            if (!$isEmpty) {
+                $seenData = true;
+                $table[]  = $item;
+            }
         }
+
         return $table;
     }
 
     protected function extractTableByString(array $rows, string $needle, int $skipLines = 1): array
     {
         $needle = strtolower($needle);
-        $start = null;
+        $start  = null;
+
         foreach ($rows as $i => $row) {
             foreach ($row as $val) {
                 if (str_contains(strtolower(trim((string) $val)), $needle)) {
@@ -530,17 +665,24 @@ class UnitUnderTestController extends Controller
                 }
             }
         }
+
         if ($start === null) {
             return [];
         }
-        $table = [];
+
+        $table   = [];
         $rowKeys = array_keys($rows);
-        $max = max($rowKeys);
+        $max     = max($rowKeys);
+
         for ($r = $start; $r <= $max; $r++) {
-            if (!isset($rows[$r])) continue;
-            $row = $rows[$r];
-            $vals = [];
+            if (!isset($rows[$r])) {
+                continue;
+            }
+
+            $row    = $rows[$r];
+            $vals   = [];
             $isEmpty = true;
+
             foreach ($row as $val) {
                 $val = trim((string) $val);
                 if ($val !== '') {
@@ -548,11 +690,14 @@ class UnitUnderTestController extends Controller
                 }
                 $vals[] = $val;
             }
+
             if ($isEmpty) {
                 break;
             }
+
             $table[] = $vals;
         }
+
         return $table;
     }
 
@@ -562,49 +707,54 @@ class UnitUnderTestController extends Controller
     protected function extractRange(array $rows, int $rowStart, int $rowEnd, array $columns): array
     {
         $table = [];
+
         for ($r = $rowStart; $r <= $rowEnd; $r++) {
             if (!isset($rows[$r])) {
                 continue;
             }
-            $row = [];
+
+            $row     = [];
             $isEmpty = true;
+
             foreach ($columns as $col) {
                 $val = isset($rows[$r][$col]) ? $rows[$r][$col] : '';
-                if (trim((string)$val) !== '') {
+                if (trim((string) $val) !== '') {
                     $isEmpty = false;
                 }
                 $row[] = $val;
             }
+
             if ($isEmpty) {
                 continue;
             }
+
             $table[] = $row;
         }
+
         return $table;
     }
 
     /**
-    * Render a single worksheet to HTML and return the body contents.
-    */
+     * Render a single worksheet to HTML and return the body contents.
+     */
     protected function sheetToHtml(Worksheet $sheet): string
     {
         try {
-            // Generate HTML with the embedded CSS (mirrors how SMCS parses/prints the cert)
-            $book = $sheet->getParent();
+            $book   = $sheet->getParent();
             $writer = new HtmlWriter($book);
             $writer->setSheetIndex($book->getIndex($sheet));
+
             ob_start();
             $writer->save('php://output');
             $html = ob_get_clean() ?: '';
 
-            // Grab generated CSS plus the body markup so formatting/borders stay intact
             $style = '';
-            if (preg_match('/<style[^>]*>(.*?)<\\/style>/is', $html, $mStyle)) {
+            if (preg_match('/<style[^>]*>(.*?)<\/style>/is', $html, $mStyle)) {
                 $style = '<style>' . ($mStyle[1] ?? '') . '</style>';
             }
 
             $body = $html;
-            if (preg_match('/<body[^>]*>(.*)<\\/body>/is', $html, $mBody)) {
+            if (preg_match('/<body[^>]*>(.*)<\/body>/is', $html, $mBody)) {
                 $body = $mBody[1];
             }
 
@@ -622,57 +772,65 @@ class UnitUnderTestController extends Controller
         if ($html === '') {
             return $html;
         }
-        // Normalize common variants and malformed closing tags
+
         $html = str_ireplace(
             ['</br>', '<br/>', '<br />', '&lt;/br&gt;', '&lt;br/&gt;', '&lt;br /&gt;'],
             '<br>',
             $html
         );
-        // Decode placeholder row/col span markers (<rs>rowspan</rs>, <cs>colspan</cs>) that may be stored as text
+
         $html = str_ireplace(
             ['&lt;rs&gt;', '&lt;/rs&gt;', '&lt;cs&gt;', '&lt;/cs&gt;'],
             ['<rs>', '</rs>', '<cs>', '</cs>'],
             $html
         );
 
-        // Apply rowspan/colspan attributes to the containing cell when markers are present
         if (str_contains(strtolower($html), '<rs>') || str_contains(strtolower($html), '<cs>')) {
             $prevUseInternal = libxml_use_internal_errors(true);
-            $doc = new \DOMDocument('1.0', 'UTF-8');
-            // Wrap in a body so DomDocument can parse fragment cleanly
+            $doc             = new \DOMDocument('1.0', 'UTF-8');
+
             $wrapped = '<html><body>' . $html . '</body></html>';
+
             if ($doc->loadHTML($wrapped, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD)) {
                 $xpath = new \DOMXPath($doc);
+
                 foreach ($xpath->query('//td|//th') as $cell) {
                     /** @var \DOMElement $cell */
                     $innerHtml = '';
                     foreach (iterator_to_array($cell->childNodes) as $child) {
-                        $innerHtml .= $doc->saveHTML($child);
+                        $innerHtml += $doc->saveHTML($child);
                     }
 
                     $rowSpan = null;
                     $colSpan = null;
-                    if (preg_match('/<rs>(\\d+)<\\/rs>/i', $innerHtml, $m)) {
+
+                    if (preg_match('/<rs>(\d+)<\/rs>/i', $innerHtml, $m)) {
                         $rowSpan = (int) $m[1];
                     }
-                    if (preg_match('/<cs>(\\d+)<\\/cs>/i', $innerHtml, $m)) {
+                    if (preg_match('/<cs>(\d+)<\/cs>/i', $innerHtml, $m)) {
                         $colSpan = (int) $m[1];
                     }
+
                     if ($rowSpan || $colSpan) {
-                        // Strip markers from content
-                        $clean = preg_replace(['/\\s*<rs>\\d+<\\/rs>\\s*/i', '/\\s*<cs>\\d+<\\/cs>\\s*/i'], '', $innerHtml);
+                        $clean = preg_replace(
+                            ['/\\s*<rs>\\d+<\\/rs>\\s*/i', '/\\s*<cs>\\d+<\\/cs>\\s*/i'],
+                            '',
+                            $innerHtml
+                        );
+
                         while ($cell->firstChild) {
                             $cell->removeChild($cell->firstChild);
                         }
+
                         if ($clean !== '') {
                             $fragment = $doc->createDocumentFragment();
-                            // appendXML returns bool; fall back to text node on failure
                             if (!$fragment->appendXML($clean)) {
                                 $cell->appendChild($doc->createTextNode(strip_tags($clean)));
                             } else {
                                 $cell->appendChild($fragment);
                             }
                         }
+
                         if ($rowSpan) {
                             $cell->setAttribute('rowspan', (string) $rowSpan);
                         }
@@ -682,7 +840,6 @@ class UnitUnderTestController extends Controller
                     }
                 }
 
-                // Pull back out the body contents (without html/head wrappers)
                 $body = $doc->getElementsByTagName('body')->item(0);
                 if ($body) {
                     $rebuilt = '';
@@ -692,6 +849,7 @@ class UnitUnderTestController extends Controller
                     $html = $rebuilt;
                 }
             }
+
             libxml_clear_errors();
             libxml_use_internal_errors($prevUseInternal);
         }

@@ -81,67 +81,61 @@
                             {{-- Parsed preview (structured, simple layout) --}}
                             <div id="parsedPreview" class="space-y-6 text-sm text-slate-800 {{ !empty($customHtml) ? 'hidden' : '' }} cursor-pointer select-text" role="button" tabindex="0" aria-label="Edit parsed content">
                                 <div class="space-y-8 bg-slate-50 p-6 rounded-lg border border-slate-200">
-                                {{-- 1. Customer Details --}}
-                                @if(!empty($report['meta']))
-                                    <div class="space-y-2">
-                                        <div class="font-semibold uppercase text-slate-700">1. CUSTOMER DETAILS</div>
-                                        <div class="ml-4 leading-relaxed space-y-3">
-                                            <div>
-                                                <div>Customer:</div>
-                                                <div class="editable-chunk outline-none whitespace-pre-line" tabindex="0">{!! $fmt($report['meta']['customer'] ?? '') !!}</div>
-                                            </div>
-                                            <div>
-                                                <div>Address:</div>
-                                                <div class="editable-chunk outline-none whitespace-pre-line" tabindex="0">{!! $fmt($report['meta']['address'] ?? '') !!}</div>
-                                            </div>
-                                            <div>
-                                                <div>End-user:</div>
-                                                <div class="editable-chunk outline-none whitespace-pre-line" tabindex="0">{!! $display($report['meta']['end_user'] ?? '', 'End-user') !!}</div>
-                                            </div>
-                                            <div>
-                                                <div>End-user Address:</div>
-                                                <div class="editable-chunk outline-none whitespace-pre-line" tabindex="0">{!! $display($report['meta']['end_user_address'] ?? '', 'End-user Address') !!}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endif
+{{-- 1. CUSTOMER DETAILS --}}
+@if(!empty($report['meta']))
+    <div class="space-y-2">
+        <div class="font-semibold uppercase text-slate-700">1. CUSTOMER DETAILS</div>
 
-                                {{-- 2. Specification --}}
-                                @if(!empty($report['meta']['uut_name']))
-                                    <div class="space-y-2">
-                                        <div class="font-semibold uppercase text-slate-700">2. SPECIFICATION OF UNIT UNDER TEST</div>
-                                        <div class="ml-4">
-                                            <table class="text-sm align-top">
-                                                <tbody>
-                                                    <tr>
-                                                        <td width="150">Unit Under Test:</td>
-                                                        <td><span class="editable-chunk outline-none whitespace-pre-line" tabindex="0">{!! $fmt($report['meta']['uut_name'] ?? '') !!}</span></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td width="150">Material:</td>
-                                                        <td><span class="editable-chunk outline-none whitespace-pre-line" tabindex="0">{!! $fmt($report['meta']['material'] ?? '') !!}</span></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td width="150">Manufacturer:</td>
-                                                        <td><span class="editable-chunk outline-none whitespace-pre-line" tabindex="0">{!! $fmt($report['meta']['manufacturer'] ?? '') !!}</span></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td width="150">Model:</td>
-                                                        <td><span class="editable-chunk outline-none whitespace-pre-line" tabindex="0">{!! $fmt($report['meta']['model'] ?? '') !!}</span></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td width="150">Serial Number:</td>
-                                                        <td><span class="editable-chunk outline-none whitespace-pre-line" tabindex="0">{!! $fmt($report['meta']['serial_number'] ?? '') !!}</span></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td width="150">Identification:</td>
-                                                        <td><span class="editable-chunk outline-none whitespace-pre-line" tabindex="0">{!! $fmt($report['meta']['identification'] ?? '') !!}</span></td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                @endif
+        <div class="ml-16 leading-relaxed space-y-3">
+
+            <div>
+                <span>Customer:</span><br>
+                <span class="editable-chunk" tabindex="0">{!! $fmt($report['meta']['customer'] ?? '') !!}</span>
+            </div>
+
+            <div>
+                <span>Address:</span><br>
+                <span class="editable-chunk" tabindex="0">{!! $fmt($report['meta']['address'] ?? '') !!}</span>
+            </div>
+
+            <div>
+                <span>End-User:</span><br>
+                <span class="editable-chunk" tabindex="0">{!! $fmt($report['meta']['end_user'] ?? '') !!}</span>
+            </div>
+
+            <div>
+                <span>End-User Address:</span><br>
+                <span class="editable-chunk" tabindex="0">{!! $fmt($report['meta']['end_user_address'] ?? '') !!}</span>
+            </div>
+
+        </div>
+    </div>
+@endif
+
+{{-- 2. SPECIFICATION OF UNIT UNDER TEST --}}
+<div class="space-y-2">
+    <div class="font-semibold uppercase text-slate-700">
+        2. SPECIFICATION OF UNIT UNDER TEST
+    </div>
+
+    <div class="ml-16">
+        <table class="vertical-top text-sm">
+            <tbody>
+                @foreach(($report['sections']['specification'] ?? []) as $row)
+                    <tr>
+                        <td width="150">
+                            {{ $row['label'] }}:
+                        </td>
+                        <td class="editable-chunk" tabindex="0">
+                            {!! $row['value'] !!}
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+
 
                                 {{-- 3. Dates --}}
                                 @if(!empty($report['meta']['date_received']) || !empty($report['meta']['date_calibrated']))
