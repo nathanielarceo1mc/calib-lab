@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use App\Notifications\UserOnboardingNotification;
 
 class UserController extends Controller
 {
@@ -69,7 +70,7 @@ class UserController extends Controller
         $data['password'] = Hash::make($tempPassword);
 
         $data['is_active'] = true;
-        $data['must_change_password'] = false;
+        $data['must_change_password'] = true;
 
         // Store roles as comma-separated string for now
         if (!empty($data['roles']) && is_array($data['roles'])) {
@@ -80,9 +81,10 @@ class UserController extends Controller
 
         $user = User::create($data);
 
-        // Send email verification link to the newly created user
+        // Send a single onboarding email containing verification and password setup links
         if ($user->email) {
-            $user->sendEmailVerificationNotification();
+            $token = Password::broker()->createToken($user);
+            $user->notify(new UserOnboardingNotification($token));
         }
 
         return redirect()

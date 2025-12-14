@@ -60,6 +60,13 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        if ($user && property_exists($user, 'must_change_password') && $user->must_change_password) {
+            Auth::logout();
+            throw ValidationException::withMessages([
+                'email' => 'Please set your password using the password setup link we emailed. You can also use Forgot Password after verifying.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 
