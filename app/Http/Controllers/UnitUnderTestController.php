@@ -21,6 +21,9 @@ class UnitUnderTestController extends Controller
             'approver',
             'personnel',
         ])
+            ->whereHas('personnel', function ($q) {
+                $q->where('roles', 'like', '%Technical%');
+            })
             ->orderByDesc('id')
             ->get();
 

@@ -76,7 +76,12 @@ class UserController extends Controller
             $data['roles'] = null;
         }
 
-        User::create($data);
+        $user = User::create($data);
+
+        // Send email verification link to the newly created user
+        if ($user->email) {
+            $user->sendEmailVerificationNotification();
+        }
 
         return redirect()
             ->route('users.index')

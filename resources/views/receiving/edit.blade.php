@@ -219,10 +219,14 @@
                                 <span class="text-sm font-semibold text-slate-800">Unit Under Test</span>
                                 @if($isReceivingRole)
                                     <div class="flex items-center gap-2">
+                                        <button type="button" id="selectAllUutBtn"
+                                                class="px-3 py-1.5 rounded border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                            Select all UUT
+                                        </button>
                                         <label class="text-xs font-semibold text-slate-600">Assign selected to:</label>
                                         <select form="batchApproverForm" name="approver_id" class="border border-slate-300 rounded-md text-xs px-2 py-1.5">
                                             <option value="">-- Select TSRF Approver --</option>
-                                            @foreach($approvers as $ap)
+                                            @foreach($tsrfApprovers as $ap)
                                                 <option value="{{ $ap->id }}">{{ $ap->name ?? (($ap->first_name ?? '').' '.($ap->last_name ?? '')) }} {{ $ap->position ? '('.$ap->position.')' : '' }}</option>
                                             @endforeach
                                         </select>
@@ -233,10 +237,14 @@
                                     </div>
                                 @elseif($isTsr)
                                     <div class="flex items-center gap-2">
-                                        <label class="text-xs font-semibold text-slate-600">Assign selected to:</label>
+                                        <button type="button" id="selectAllPersonnelBtn"
+                                                class="px-3 py-1.5 rounded border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                            Select all UUT
+                                        </button>
+                                        <label class="text-xs font-semibold text-slate-600">Assign UUT(s) to:</label>
                                         <select form="batchPersonnelForm" name="personnel_id" class="border border-slate-300 rounded-md text-xs px-2 py-1.5">
                                             <option value="">-- Select Personnel --</option>
-                                            @foreach($approvers as $ap)
+                                            @foreach($technicalUsers as $ap)
                                                 <option value="{{ $ap->id }}">{{ $ap->name ?? (($ap->first_name ?? '').' '.($ap->last_name ?? '')) }} {{ $ap->position ? '('.$ap->position.')' : '' }}</option>
                                             @endforeach
                                         </select>
@@ -258,7 +266,7 @@
                                             <div class="space-y-0.5">
                                                 <div class="text-[11px] uppercase tracking-wide text-slate-500">Reference No.</div>
                                                 <div class="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                                                    @if($isReceivingRole)
+                                                    @if($isReceivingRole && ! $unit->assigned_approver_id)
                                                         <input type="checkbox" form="batchApproverForm" name="unit_ids[]" value="{{ $unit->id }}" class="h-4 w-4 border-slate-300 rounded">
                                                     @elseif($isTsr && $unit->assigned_approver_id === $currentUserId && ! $unit->assigned_personnel_id)
                                                         <input type="checkbox" form="batchPersonnelForm" name="unit_ids[]" value="{{ $unit->id }}" class="h-4 w-4 border-slate-300 rounded">
@@ -571,14 +579,17 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
                             <div>
                                 <label class="block text-[11px] font-semibold text-slate-600 mb-1">Assigned Approver *</label>
-                                <select name="units[{{ $unit->id }}][assigned_approver_id]" class="w-full border border-slate-300 rounded-md text-sm px-2 py-1.5">
+                                <select name="units[{{ $unit->id }}][assigned_approver_id]" class="w-full border border-slate-300 rounded-md text-sm px-2 py-1.5" {{ $unit->assigned_approver_id ? 'disabled' : '' }}>
                                     <option value="">-- Select approver --</option>
-                                    @foreach($approvers as $ap)
+                                    @foreach($tsrfApprovers as $ap)
                                         <option value="{{ $ap->id }}" {{ ($unit->assigned_approver_id == $ap->id) ? 'selected' : '' }}>
                                             {{ $ap->name ?? (($ap->first_name ?? '').' '.($ap->last_name ?? '')) }} {{ $ap->position ? '('.$ap->position.')' : '' }}
                                         </option>
                                     @endforeach
                                 </select>
+                                @if($unit->assigned_approver_id)
+                                    <input type="hidden" name="units[{{ $unit->id }}][assigned_approver_id]" value="{{ $unit->assigned_approver_id }}">
+                                @endif
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-[11px] font-semibold text-slate-600 mb-1">Approver's Remarks</label>
@@ -590,7 +601,7 @@
                                     <label class="block text-[11px] font-semibold text-slate-600 mb-1">Assigned Personnel</label>
                                     <select name="units[{{ $unit->id }}][assigned_personnel_id]" class="w-full border border-slate-300 rounded-md text-sm px-2 py-1.5">
                                         <option value="">-- Select personnel --</option>
-                                        @foreach($approvers as $ap)
+                                        @foreach($technicalUsers as $ap)
                                             <option value="{{ $ap->id }}" {{ ($unit->assigned_personnel_id == $ap->id) ? 'selected' : '' }}>
                                                 {{ $ap->name ?? (($ap->first_name ?? '').' '.($ap->last_name ?? '')) }} {{ $ap->position ? '('.$ap->position.')' : '' }}
                                             </option>
@@ -787,6 +798,24 @@
                 const email = document.getElementById('customerEmail');
                 const designation = document.getElementById('contactDesignation');
                 const contactInput = document.getElementById('contactPersonInput');
+                const selectAllUutBtn = document.getElementById('selectAllUutBtn');
+                const selectAllPersonnelBtn = document.getElementById('selectAllPersonnelBtn');
+
+                if (selectAllUutBtn) {
+                    selectAllUutBtn.addEventListener('click', () => {
+                        document.querySelectorAll('input[type=\"checkbox\"][form=\"batchApproverForm\"]').forEach((cb) => {
+                            cb.checked = true;
+                        });
+                    });
+                }
+
+                if (selectAllPersonnelBtn) {
+                    selectAllPersonnelBtn.addEventListener('click', () => {
+                        document.querySelectorAll('input[type=\"checkbox\"][form=\"batchPersonnelForm\"]').forEach((cb) => {
+                            cb.checked = true;
+                        });
+                    });
+                }
 
                 function rebuildSelect(select, items, placeholder = '') {
                     select.innerHTML = '';

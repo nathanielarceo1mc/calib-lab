@@ -198,11 +198,23 @@ class ReceivingController extends Controller
             ->orderBy('position')
             ->orderBy('name')
             ->get();
+        $tsrfApprovers = $approvers
+            ->filter(function ($user) {
+                return str_contains($user->roles ?? '', 'TSRF Approver');
+            })
+            ->values();
+        $technicalUsers = $approvers
+            ->filter(function ($user) {
+                return str_contains($user->roles ?? '', 'Technical');
+            })
+            ->values();
 
         return view('receiving.edit', [
-            'job'       => $workOrder->load(['units.approver', 'units.personnel', 'customer.contactPersons']),
-            'customers' => Customer::with(['contactPersons', 'endUsers'])->orderBy('business_name')->get(),
-            'approvers' => $approvers,
+            'job'            => $workOrder->load(['units.approver', 'units.personnel', 'customer.contactPersons']),
+            'customers'      => Customer::with(['contactPersons', 'endUsers'])->orderBy('business_name')->get(),
+            'approvers'      => $approvers,
+            'tsrfApprovers'  => $tsrfApprovers,
+            'technicalUsers' => $technicalUsers,
         ]);
     }
 
@@ -280,7 +292,7 @@ class ReceivingController extends Controller
 
                     $uut->update([
                         'status'                    => $newStatus,
-                        'assigned_approver_id'      => $payload['assigned_approver_id'] ?? $uut->assigned_approver_id,
+                        'assigned_approver_id'      => $uut->assigned_approver_id ?: ($payload['assigned_approver_id'] ?? null),
                         'assigned_personnel_id'     => $payload['assigned_personnel_id'] ?? $uut->assigned_personnel_id,
                         'name'                      => $nameValue,
                         'method_procedure'          => $payload['method_procedure'] ?? $uut->method_procedure,
@@ -446,6 +458,14 @@ class ReceivingController extends Controller
             return back()->with('error', 'No references selected.');
         }
 
+        // Prevent reassignment once an approver is already set
+        $alreadyAssigned = $units->filter(function ($unit) {
+            return !empty($unit->assigned_approver_id);
+        });
+        if ($alreadyAssigned->isNotEmpty()) {
+            return back()->with('error', 'One or more selected references are already assigned to an approver and cannot be changed.');
+        }
+
         // Optionally ensure approver has the TSRF role
         $approver = User::find($data['approver_id']);
         if (! $approver) {
@@ -454,6 +474,7 @@ class ReceivingController extends Controller
 
         UnitUnderTest::where('work_order_id', $workOrder->id)
             ->whereIn('id', $data['unit_ids'])
+            ->whereNull('assigned_approver_id')
             ->update([
                 'assigned_approver_id' => $data['approver_id'],
                 'status'               => 'for_approval',

@@ -15,15 +15,19 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans text-gray-900 antialiased">
-        <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100">
-            <div>
+        <div class="min-h-screen flex flex-col sm:justify-center items-center pt-10 sm:pt-6 bg-gray-100">
+            <div class="mb-4">
                 <a href="/">
-                    <x-application-logo class="w-20 h-20 fill-current text-gray-500" />
+                    <img src="{{ asset('imc-logo-transparent.png') }}" alt="IMC Logo" class="h-28 md:h-32 w-auto">
                 </a>
             </div>
 
             <div class="w-full sm:max-w-md mt-6 px-6 py-4 bg-white shadow-md overflow-hidden sm:rounded-lg">
                 {{ $slot }}
+            </div>
+            <div class="mt-4 text-xs text-gray-500">
+                &copy; {{ date('Y') }} All rights reserved.
+                1ntegrated Metrology Corporation
             </div>
         </div>
     </body>
