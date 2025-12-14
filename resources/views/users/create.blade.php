@@ -87,17 +87,10 @@
                         <label class="block text-sm font-medium">Email *</label>
                         <input type="email" name="email" class="form-input w-full" required value="{{ old('email') }}">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium">Password *</label>
-                        <input type="password" name="password" class="form-input w-full" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium">Confirm Password *</label>
-                        <input type="password" name="password_confirmation" class="form-input w-full" required>
-                    </div>
-                    <div>
+                    <div class="lg:col-span-3">
                         <label class="block text-sm font-medium">Groups</label>
                         <input type="text" name="groups" class="form-input w-full" value="{{ old('groups') }}">
+                        <p class="text-xs text-gray-500 mt-1">A password setup link will be emailed to the user.</p>
                     </div>
                 </div>
 

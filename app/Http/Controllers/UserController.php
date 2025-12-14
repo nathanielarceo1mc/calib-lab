@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 
 class UserController extends Controller
 {
@@ -58,16 +59,17 @@ class UserController extends Controller
             'service_types'   => ['nullable', 'string', 'max:255'],
 
             'email'           => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password'        => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
         // Build the "name" field from first + last
         $data['name'] = trim($data['first_name'] . ' ' . $data['last_name']);
 
-        // Set password from input
-        $data['password'] = Hash::make($data['password']);
+        // Generate a temp password; user will set their own via email link
+        $tempPassword = Str::random(16);
+        $data['password'] = Hash::make($tempPassword);
 
         $data['is_active'] = true;
+        $data['must_change_password'] = true;
 
         // Store roles as comma-separated string for now
         if (!empty($data['roles']) && is_array($data['roles'])) {
@@ -81,11 +83,13 @@ class UserController extends Controller
         // Send email verification link to the newly created user
         if ($user->email) {
             $user->sendEmailVerificationNotification();
+            // Send password reset / set-password link
+            Password::sendResetLink(['email' => $user->email]);
         }
 
         return redirect()
             ->route('users.index')
-            ->with('success', 'User created successfully.');
+            ->with('success', 'User created successfully. Verification and password setup link sent.');
     }
 
     public function edit(User $user)

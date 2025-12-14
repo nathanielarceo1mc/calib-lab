@@ -5,6 +5,7 @@ namespace App\Http\Requests\Auth;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -56,6 +57,15 @@ class LoginRequest extends FormRequest
 
             throw ValidationException::withMessages([
                 'email' => 'Please verify your email address. A verification link has been sent.',
+            ]);
+        }
+
+        if ($user && property_exists($user, 'must_change_password') && $user->must_change_password) {
+            Auth::logout();
+            Password::sendResetLink(['email' => $user->email]);
+
+            throw ValidationException::withMessages([
+                'email' => 'Please set your password using the link we emailed to you.',
             ]);
         }
 

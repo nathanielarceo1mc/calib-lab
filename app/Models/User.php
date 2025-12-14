@@ -46,6 +46,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
         // Status
         'is_active',
+        'must_change_password',
     ];
 
     /**
@@ -66,6 +67,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'birth_date'        => 'date',
             'password'          => 'hashed',
             'is_active'         => 'boolean',
+            'must_change_password' => 'boolean',
         ];
     }
 
