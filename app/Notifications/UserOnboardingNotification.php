@@ -49,7 +49,7 @@ class UserOnboardingNotification extends Notification
         $expiration = Carbon::now()->addMinutes(config('auth.verification.expire', 60));
 
         return URL::temporarySignedRoute(
-            'verification.verify',
+            'verification.verify.guest',
             $expiration,
             [
                 'id' => $notifiable->getKey(),

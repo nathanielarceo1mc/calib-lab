@@ -11,6 +11,11 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
+// Public signed verification (no auth session required)
+Route::get('verify-email/{id}/{hash}', [VerifyEmailController::class, 'verifyGuest'])
+    ->middleware(['signed', 'throttle:6,1'])
+    ->name('verification.verify.guest');
+
 Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
