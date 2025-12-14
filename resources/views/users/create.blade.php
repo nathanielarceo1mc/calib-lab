@@ -10,6 +10,12 @@
 
         <div class="bg-white shadow-sm sm:rounded-lg p-6">
 
+            @if(session('success'))
+                <div class="mb-4 rounded-md bg-emerald-50 border border-emerald-200 px-4 py-2 text-sm text-emerald-800">
+                    {{ session('success') }}
+                </div>
+            @endif
+
             <form action="{{ route('users.store') }}" method="POST">
                 @csrf
 
