@@ -60,15 +60,6 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        if ($user && property_exists($user, 'must_change_password') && $user->must_change_password) {
-            Auth::logout();
-            Password::sendResetLink(['email' => $user->email]);
-
-            throw ValidationException::withMessages([
-                'email' => 'Please set your password using the link we emailed to you.',
-            ]);
-        }
-
         RateLimiter::clear($this->throttleKey());
     }
 

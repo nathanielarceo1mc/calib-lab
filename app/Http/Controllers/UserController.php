@@ -69,7 +69,7 @@ class UserController extends Controller
         $data['password'] = Hash::make($tempPassword);
 
         $data['is_active'] = true;
-        $data['must_change_password'] = true;
+        $data['must_change_password'] = false;
 
         // Store roles as comma-separated string for now
         if (!empty($data['roles']) && is_array($data['roles'])) {
@@ -83,8 +83,6 @@ class UserController extends Controller
         // Send email verification link to the newly created user
         if ($user->email) {
             $user->sendEmailVerificationNotification();
-            // Send password reset / set-password link
-            Password::sendResetLink(['email' => $user->email]);
         }
 
         return redirect()
