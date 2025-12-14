@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
-use App\Notifications\UserOnboardingNotification;
 
 class UserController extends Controller
 {
@@ -81,15 +80,15 @@ class UserController extends Controller
 
         $user = User::create($data);
 
-        // Send a single onboarding email containing verification and password setup links
+        // Mark email verified and send only a password reset link to let the user set their password
+        $user->forceFill(['email_verified_at' => now()])->save();
         if ($user->email) {
-            $token = Password::broker()->createToken($user);
-            $user->notify(new UserOnboardingNotification($token));
+            Password::sendResetLink(['email' => $user->email]);
         }
 
         return redirect()
             ->route('users.index')
-            ->with('success', 'User created successfully. Verification and password setup link sent.');
+            ->with('success', 'User created successfully. Password setup link sent.');
     }
 
     public function edit(User $user)
